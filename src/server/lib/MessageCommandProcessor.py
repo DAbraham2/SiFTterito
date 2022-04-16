@@ -38,7 +38,17 @@ class MTPv1CommandFactory:
 
 
 class LoginCommand(CommandBase):
-    pass
+    """
+    Login command protocol initiater
+    """
+    
+    def __init__(self, data: bytes, request, sender) -> None:
+        self.request = request
+        self.sender = sender
+        self.data = data
+
+    def do() -> None:
+        pass
 
 
 class PwdCommand(CommandBase):

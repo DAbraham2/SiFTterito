@@ -1,10 +1,11 @@
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
 
+
 class MTPMessage:
     """ 
     A class to represent SiFT Message Transfer Protocol messages
-    
+
     ...
 
     Attributes
@@ -22,15 +23,15 @@ class MTPMessage:
     rsv : bytes
         A 2-byte reserved field which is not used in this version of the protocol (reserved for future versions). Value should be set to 00 00.
     """
-    
+
     def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes) -> None:
-        if (len(ver) is not 2 or 
-            len(typ) is not 2 or 
-            len(len) is not 2 or 
-            len(sqn) is not 2 or 
-            len(rnd) is not 6 or 
-            len(rsv) is not 2 or 
-            rsv != bytes(2)):
+        if (len(ver) is not 2 or
+            len(typ) is not 2 or
+            len(len) is not 2 or
+            len(sqn) is not 2 or
+            len(rnd) is not 6 or
+            len(rsv) is not 2 or
+                rsv != bytes(2)):
             raise ValueError('Incompatible values set')
         self.ver = ver
         self.typ = typ
@@ -46,7 +47,8 @@ class MTPMessage:
         epd, mac = cipher.encrypt_and_digest(data)
         self.content = epd
         self.mac = mac
-        length = len(self.content) + 16 + len(self.mac) #Magic 16 should represent the len(header)
+        # Magic 16 should represent the len(header)
+        length = len(self.content) + 16 + len(self.mac)
         self.len = length.to_bytes(2, 'big', signed=False)
 
 
@@ -57,16 +59,40 @@ class MTPv1Message(MTPMessage):
 
 
 class LoginRequest(MTPv1Message):
-    def __init__(self, sqn = bytes(2)) -> None:
-        super().__init__(typ = bytes.fromhex('0000'), len = bytes(2), sqn = sqn)
+    def __init__(self, sqn=bytes(2)) -> None:
+        super().__init__(typ=bytes.fromhex('0000'), len=bytes(2), sqn=sqn)
+
+    def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes) -> None:
+        super().__init__(typ, len, sqn)
+
+    def createFromContent(data: bytes) -> LoginRequest:
+        """Creates a LoginRequest object from a recieved message
+        
+        :param data: The recieved message
+        :type data: bytes
+        :returns: a new LoginRequest object
+        :rtype: LoginRequest
+        """
+        
+        ver = data[ 0: 2]
+        typ = data[ 2: 4]
+        len = data[ 4: 6]
+        sqn = data[ 6: 8]
+        rnd = data[ 8:14]
+        rsv = data[14:16]
+
+        epd = data[16:-(12+256)]
+        mac = data[-(12+256):-256]
+        etk = data[-256:]
+        pass
 
 
 class LoginResponse(MTPv1Message):
     def __init__(self, typ: bytes, len: bytes, sqn: bytes) -> None:
         super().__init__(typ, len, sqn)
 
-    # It then encrypts the payload of the login response and produces an authentication tag on the message header 
-    # and the encrypted payload using AES in GCM mode with tk as the key and sqn+rnd as the nonce. 
+    # It then encrypts the payload of the login response and produces an authentication tag on the message header
+    # and the encrypted payload using AES in GCM mode with tk as the key and sqn+rnd as the nonce.
     # In this way the epd and mac fields are produced, and the login response is sent to the client.
     def createFromContent(content: bytes):
         pass
