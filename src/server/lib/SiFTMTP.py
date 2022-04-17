@@ -1,3 +1,4 @@
+from typing_extensions import Self
 from Crypto.Random import get_random_bytes
 from Crypto.Cipher import AES
 
@@ -65,7 +66,7 @@ class LoginRequest(MTPv1Message):
     def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes) -> None:
         super().__init__(typ, len, sqn)
 
-    def createFromContent(data: bytes) -> LoginRequest:
+    def createFromContent(data: bytes) -> Self:
         """Creates a LoginRequest object from a recieved message
         
         :param data: The recieved message
@@ -77,6 +78,7 @@ class LoginRequest(MTPv1Message):
         ver = data[ 0: 2]
         typ = data[ 2: 4]
         len = data[ 4: 6]
+        # len is calculated as the sum of the length of the header (16), the length of the encrypted payload (same as the length of the payload), the length of the mac field (12), and the length of the encrypted temporary key (256)
         sqn = data[ 6: 8]
         rnd = data[ 8:14]
         rsv = data[14:16]
@@ -84,7 +86,7 @@ class LoginRequest(MTPv1Message):
         epd = data[16:-(12+256)]
         mac = data[-(12+256):-256]
         etk = data[-256:]
-        pass
+        return LoginRequest(ver, typ, len, sqn, rnd, rsv)
 
 
 class LoginResponse(MTPv1Message):
