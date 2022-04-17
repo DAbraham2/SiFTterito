@@ -11,7 +11,7 @@ class ClientManager(object):
             A nested dictionary containing a dictionary of { "server_sqn" : number, "client_sqn" : number, "loggedIn": boolean }
     """
 
-    def __new__(cls) -> Self:
+    def __new__(cls):
         if not hasattr(cls, 'instance'):
             cls.instance = super(ClientManager, cls).__new__(cls)
         return cls.instance

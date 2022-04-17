@@ -1,7 +1,7 @@
 
 from typing_extensions import Self
 
-from SiFTterito.src.server.lib.constants import MTPCommandRequestType, MTPConstants, MTPDownloadRequestType, MTPLoginRequestType
+from constants import MTPCommandRequestType, MTPConstants, MTPDownloadRequestType, MTPLoginRequestType
 
 
 class CommandBase:
