@@ -1,3 +1,5 @@
 src/server/server.log
 src/server/core/__pycache__/*
 src/server/lib/__pycache__/*
+.vscode/*
+src/server/__pycache__/*
