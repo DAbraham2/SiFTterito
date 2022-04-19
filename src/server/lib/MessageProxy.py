@@ -4,8 +4,8 @@ from SiFTMTP import MTPMessage, MessageFactory
 
 class SiFTProxy:
     def __init__(self) -> None:
-        self.server_sqn = 0
-        self.client_sqn = 0
+        self.server_sqn = 2
+        self.client_sqn = 1
 
     def receive_msg(self, message : bytes) -> MTPMessage:
         header = message[:16]
