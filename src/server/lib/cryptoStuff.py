@@ -43,10 +43,10 @@ def encryptMessage(payload: bytes, header: bytes, tk: bytes) -> tuple[bytes, byt
 
 def loginFunction(username: str, password: str) -> bool:
     usr_dic = {}
-    with open('', 'rt') as f:
+    with open('users.passwd', 'rt') as f:
         lines = f.readlines()
         for l in lines:
-            l.split('\t')
+            l = l.split('\t')
             usr_dic[l[0]] = {'password': bytes.fromhex(
                 l[1]), 'salt': bytes.fromhex(l[2])}
     salt = bytes(0)

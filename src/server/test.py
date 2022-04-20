@@ -3,7 +3,7 @@ import unittest
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
 
-from lib.cryptoStuff import decryptLoginRequestEPD
+from lib.cryptoStuff import decryptMessage
 from lib.constants import MTPConstants
 
 
@@ -36,7 +36,7 @@ class TestEPDecrypt(unittest.TestCase):
             f.flush()
             f.close()
 
-        decriptedContent = decryptLoginRequestEPD(epd+mac,getHeader(pd, sqn, rnd), tk, rnd, sqn)
+        decriptedContent = decryptMessage(epd+mac,getHeader(pd, sqn, rnd), tk)
 
         self.assertEqual(decriptedContent, pd)
 

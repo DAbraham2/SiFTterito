@@ -1,7 +1,6 @@
 from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES
-from constants import MTPConstants
-from cryptoStuff import decryptMessage, decryptLoginRequestETK, encryptMessage
+from lib.constants import MTPConstants
+from lib.cryptoStuff import decryptMessage, decryptLoginRequestETK, encryptMessage
 
 
 class MTPMessage(object):

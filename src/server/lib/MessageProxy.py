@@ -1,5 +1,5 @@
 from asyncio import Transport
-from SiFTMTP import MTPMessage, MessageFactory
+from lib.SiFTMTP import MTPMessage, MessageFactory
 
 
 class SiFTProxy:

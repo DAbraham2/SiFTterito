@@ -1,9 +1,9 @@
 from socket import socket
 from time import time
-from SiFTMTP import LoginRequest, LoginResponse, MessageFactory
+from lib.SiFTMTP import LoginRequest, LoginResponse, MessageFactory
 from Crypto.Hash import SHA256
 from Crypto.Random import get_random_bytes
-from cryptoStuff import loginFunction
+from lib.cryptoStuff import loginFunction
 
 
 def handle_Login(socket : socket, window : int = 2) -> bytes:
