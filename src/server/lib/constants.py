@@ -10,3 +10,4 @@ class MTPConstants:
     DownloadRequestType      = bytes.fromhex("03 00")
     Download0ResponseType    = bytes.fromhex("03 01")
     Download1ResponseType    = bytes.fromhex("03 10")
+    VersionNumber            = bytes.fromhex("01 00")

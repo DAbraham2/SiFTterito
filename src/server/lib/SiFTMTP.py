@@ -1,3 +1,4 @@
+from typing_extensions import Self
 from Crypto.Random import get_random_bytes
 from lib.constants import MTPConstants
 from lib.cryptoStuff import decryptMessage, decryptLoginRequestETK, encryptMessage
