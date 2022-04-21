@@ -5,36 +5,55 @@ from os import name as osname
 import socket
 import sys
 from Crypto.Hash import SHA256
+from Crypto.Protocol.KDF import HKDF
 
-'''
-HOST, PORT = 'localhost', 5150
-
-with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-    sock.connect((HOST, PORT))
-    sock.sendall(bytes("fasztapicsadba", "utf-8"))
-    received = str(sock.recv(1024), "utf-8")
-    sock.sendall(bytes('feri', "utf-8"))
-    received2 = str(sock.recv(1024), "utf-8")
-
-print('Sent:        {}'.format("fasztapicsadba"))
-print('Received:    {}'.format(received))
-'''
+file_dir = os.path.dirname(__file__)
+protocol_dir = os.path.join(file_dir, '..', 'protocol')
+sys.path.append(protocol_dir)
+from SiFT_MTP import LoginRequestMessage, LoginResponseMessage
 
 
 class SiFTClient:
-    def __init__(self, HOST, PORT):
+    def __init__(self, HOST, PORT, pubkey_path):
         self.ui = self.UI()
         self.host = HOST
         self.port = PORT
         self.logged_in = False
-        username, password = self.ui.login_window(self.logged_in)
-        command = self.ui.command_window(username)
-        while command[0] != "exit":
-            command = self.ui.command_window(username)
-            message = self.command_format(command)
+        self.pubkey_path = pubkey_path
+        self.sqn = 0
+        self.final_key = None
 
-    def connect_to_sercer(self):
-        pass
+    def operation(self):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((self.host, self.port))
+
+                # LOGIN
+                username, password = self.ui.login_window(self.logged_in)
+                self.sqn = (self.sqn + 1).to_bytes(2, byteorder='big')
+                login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
+                                                                                               [username, password],
+                                                                                               self.sqn).login_request()
+                sock.sendall(bytes(login_req_message, "utf-8"))
+                login_res = str(sock.recv(1024), "utf-8")
+                server_random, self.sqn = LoginResponseMessage(login_res, self.sqn, temp_key,
+                                                               message_hash).parse_message()
+                if server_random == 0:
+                    sock.close()
+                self.generate_final_key(client_random, server_random, message_hash)
+                command = self.ui.command_window(username)
+                while command[0] != "exit":
+                    command = self.ui.command_window(username)
+                    formatted_message = self.command_format(command)
+
+                sock.sendall(bytes("test", "utf-8"))
+                received = str(sock.recv(1024), "utf-8")
+        except Exception:
+            print("An error was occured during the process")
+
+    def generate_final_key(self, client_random, server_random, request_hash):
+        salt = request_hash
+        self.final_key = HKDF(client_random + server_random, 32, salt, SHA256, 1)
 
     def command_format(self, command):
         if command[0] == "upl":
@@ -55,7 +74,6 @@ class SiFTClient:
         message = command[0] + '\n'
         for com in command:
             message = message + com + '\n'
-        getch()
         return message
 
     class UI:
@@ -135,9 +153,10 @@ class SiFTClient:
                 self.clear_screen()
                 print(f"Are you sure you want to {text}?")
                 answer = input("Y/N")
-                if answer.upper() == "Y" or answer.uppoer == "N":
+                if answer.upper() == "Y" or answer.upper == "N":
                     return answer
 
+        '''
         def result_window(self, result):
             if result[2] == "failed":
                 print(f"FAIL COMMAND: {result[3]}")
@@ -150,6 +169,7 @@ class SiFTClient:
                 else:
                     for row in result:
                         print(row)
+        '''
 
 
-SiFTClient("localhost", 5015)
+SiFTClient("localhost", 5015, "public.pem")
