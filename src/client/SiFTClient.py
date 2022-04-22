@@ -15,6 +15,7 @@ from SiFT_MTP import LoginRequestMessage, LoginResponseMessage
 
 class SiFTClient:
     def __init__(self, HOST, PORT, pubkey_path):
+        print("Initialization...")
         self.ui = self.UI()
         self.host = HOST
         self.port = PORT
@@ -22,25 +23,41 @@ class SiFTClient:
         self.pubkey_path = pubkey_path
         self.sqn = 0
         self.final_key = None
+        self.operation()
 
     def operation(self):
+        print("Connection is about to start:")
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.connect((self.host, self.port))
-
+                print("Connection established")
                 # LOGIN
                 username, password = self.ui.login_window(self.logged_in)
                 self.sqn = (self.sqn + 1).to_bytes(2, byteorder='big')
+                print("Starting Login Protocol")
                 login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
                                                                                                [username, password],
                                                                                                self.sqn).login_request()
-                sock.sendall(bytes(login_req_message, "utf-8"))
+                print(f"Login request: \nUsername: {username}\n"
+                      f"Password: {password}\n"
+                      f"SQN: {self.sqn}\n"
+                      f"Login request message: {login_req_message}\n"
+                      f"Message hash: {message_hash}\n"
+                      f"My random: {client_random}\n"
+                      f"Temp key: {temp_key}")
+                try:
+                    sock.sendall(login_req_message)
+                    print("Message sent!")
+                except Exception as e:
+                    print(e)
                 login_res = str(sock.recv(1024), "utf-8")
+                print(f"Login response: {login_res}")
                 server_random, self.sqn = LoginResponseMessage(login_res, self.sqn, temp_key,
                                                                message_hash).parse_message()
                 if server_random == 0:
                     sock.close()
                 self.generate_final_key(client_random, server_random, message_hash)
+                sleep(10)
                 command = self.ui.command_window(username)
                 while command[0] != "exit":
                     command = self.ui.command_window(username)
@@ -48,7 +65,7 @@ class SiFTClient:
 
                 sock.sendall(bytes("test", "utf-8"))
                 received = str(sock.recv(1024), "utf-8")
-        except Exception:
+        except Exception as e:
             print("An error was occured during the process")
 
     def generate_final_key(self, client_random, server_random, request_hash):
@@ -171,5 +188,5 @@ class SiFTClient:
                         print(row)
         '''
 
-
-SiFTClient("localhost", 5015, "public.pem")
+print("Starting...")
+SiFTClient("localhost", 5150, "public.pem")

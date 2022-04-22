@@ -11,6 +11,7 @@ def dummy_server(host, port):
                 print(f"Connected by {addr}")
                 while True:
                     data = conn.recv(1024)
+                    print(data)
                     if not data:
                         break
                     conn.sendall(data)
