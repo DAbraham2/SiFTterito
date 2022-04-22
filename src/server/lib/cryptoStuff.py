@@ -4,7 +4,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
-
+from Crypto.Hash import SHA256
 
 def decryptLoginRequestETK(etk: bytes) -> bytes:
     key = RSA.importKey(open('src/server/crypto_key/private_key.pem').read())
@@ -61,3 +61,6 @@ def loginFunction(username: str, password: str) -> bool:
     pwHash = scrypt(bytes(password, 'utf-8'), salt, 128, 2**14, 8, 1)
 
     return pwHash == origi_password
+
+def getHash(content : bytes) -> str:
+    return SHA256.new(content)

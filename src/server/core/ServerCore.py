@@ -10,17 +10,16 @@ class SiFTMainServer(asyncio.Protocol):
         peername = transport.get_extra_info('peername')
         print('Connection from {}'.format(peername))
         try:
-            self.final_transfer_key, self.username = handle_Login(
+            final_transfer_key, username = handle_Login(
                 transport.get_extra_info('socket'))
-            self.proxy = SiFTProxy()
-            self.transport = transport
+            self.proxy = SiFTProxy(transport, final_transfer_key, username)
         except:
             transport.close()
 
     def data_received(self, data: bytes) -> None:
         try:
             mtp_message = self.proxy.receive_msg(data)
-            response = Executor.executeFromMessage(mtp_message)
-            self.proxy.send_msg(response, self.transport)
+            header, payload = Executor.executeFromMessage(mtp_message)
+            self.proxy.send_msg(header, payload, self.transport)
         except:
-            self.transport.close()
+            self.proxy.close()

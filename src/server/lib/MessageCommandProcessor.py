@@ -1,18 +1,19 @@
 
-from typing_extensions import Self
+from asyncio import Transport
+from DirectoryManager import DirManager
+from SiFTMTP import MTPv1Message
 
-from constants import MTPCommandRequestType, MTPConstants, MTPDownloadRequestType, MTPLoginRequestType
-
+from constants import MTPConstants
 
 class CommandBase:
 
-    def do() -> None:
+    def do(self, *, dm : DirManager) -> str:
         pass
 
 
 class MTPv1Processor:
-    def executeCommand(command: CommandBase):
-        command.do()
+    def executeCommand(command: CommandBase, *, directoryManager : DirManager) -> str:
+        return command.do()
 
 
 class MTPv1CommandFactory:
@@ -36,18 +37,36 @@ class MTPv1CommandFactory:
 
         return cmd
 
+    def getCommandFromMessage(message: MTPv1Message):
+        cmd = CommandBase()
+        match message.typ:
+            case MTPConstants.LoginRequestType:
+                raise ValueError('Login should not happen here.')
+            case MTPConstants.CommandRequestType:
+                print('Command')
+            case MTPConstants.DownloadRequestType:
+                print('Download')
+            case MTPConstants.UploadRequest0Type:
+                print('Upload0')
+            case MTPConstants.UploadRequest1Type:
+                print('Upload1')
+            case _:
+                raise ValueError('Unkown message type')
+
+        return cmd
+
 
 class LoginCommand(CommandBase):
     """
     Login command protocol initiater
     """
-    
+
     def __init__(self, data: bytes, request, sender) -> None:
         self.request = request
         self.sender = sender
         self.data = data
 
-    def do() -> None:
+    def do(*, dm: DirManager) -> str:
         pass
 
 
@@ -77,9 +96,13 @@ class ChdCommand(CommandBase):
 
     Changes the current working directory on the server. The name of the target directory is provided as an argument to the chd command.
     """
+    def __init__(self, _path: str) -> None:
+        self.path = _path
 
-    pass
-
+    def do(self, *, dm: DirManager) -> str:
+        if dm is None:
+            raise ValueError('Directory manager cannot be null to execute this command')
+        return dm.chd(self.path)
 
 class MkdCommand(CommandBase):
     """
