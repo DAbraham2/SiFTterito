@@ -2,7 +2,7 @@ import asyncio
 from lib.MessageProxy import SiFTProxy
 
 from core.LoginProtocol import handle_Login
-from server.core.SiFTExecutor import Executor
+from core.SiFTExecutor import Executor
 
 
 class SiFTMainServer(asyncio.Protocol):
