@@ -6,7 +6,7 @@ from Crypto.Random import get_random_bytes
 from lib.cryptoStuff import loginFunction
 
 
-def handle_Login(socket : socket, window : int = 2) -> bytes:
+def handle_Login(socket : socket, window : int = 2) -> tuple[bytes, str]:
     """
     This method implements the login protocol according to the specification
 
@@ -50,4 +50,4 @@ def handle_Login(socket : socket, window : int = 2) -> bytes:
     response = LoginResponse(response_payload, bytes.fromhex('0001'), tk=msg.temporary_key)
 
     socket.sendall(response.getMessageAsBytes)
-    return msg.client_secret + server_random
+    return (msg.client_secret + server_random, msg.username)
