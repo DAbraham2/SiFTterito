@@ -35,3 +35,10 @@ class DirManagementTest(unittest.TestCase):
         b.chd('test')
         res = b.pwd()
         self.assertTrue(res.endswith('test'))
+
+    def test_Lst1(self):
+        b = DirManager('TestUser')
+        res = b.lst()
+        self.assertTrue(res.startswith('success'))
+        self.assertFalse(res.find('fer.txt') is -1)
+        self.assertFalse(res.find('test') is -1)
