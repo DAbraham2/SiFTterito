@@ -1,7 +1,7 @@
 from asyncio import Transport
-from DirectoryManager import DirManager
-from MessageCommandProcessor import MTPv1CommandFactory
-from SiFTMTP import MTPv1Message
+from lib.DirectoryManager import DirManager
+from lib.MessageCommandProcessor import MTPv1CommandFactory
+from lib.SiFTMTP import MTPv1Message
 from lib.SiFTMTP import MTPMessage, MessageFactory
 
 

@@ -48,7 +48,9 @@ class MTPv1CommandFactory:
                 com = message.content.decode('utf-8')
                 match com.split('\n')[0]:
                     case 'chd':
-                        pass
+                        cmd = ChdCommand(message.content, com.split('\n')[1])
+                    case 'pwd':
+                        cmd = PwdCommand(message.content)
                     case _:
                         pass
             case MTPConstants.DownloadRequestType:
@@ -70,7 +72,14 @@ class PwdCommand(CommandBase):
     Returns to the client the name of the current working directory on the server.
     """
 
-    pass
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
+        if dm is None:
+            raise ValueError('')
+
+        r='pwd\n{}\n'.format(self.req_hash)
+        r = r + dm.pwd()
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+        return (header, r)
 
 
 class LstCommand(CommandBase):

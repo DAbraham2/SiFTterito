@@ -34,5 +34,8 @@ class DirManager:
         except:
             return 'failure'
 
+    def pwd(self) -> str:
+        pass
+
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory

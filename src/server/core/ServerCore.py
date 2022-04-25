@@ -2,8 +2,6 @@ import asyncio
 from lib.MessageProxy import SiFTProxy
 
 from core.LoginProtocol import handle_Login
-from core.SiFTExecutor import Executor
-
 
 class SiFTMainServer(asyncio.Protocol):
     def connection_made(self, transport: asyncio.Transport):
