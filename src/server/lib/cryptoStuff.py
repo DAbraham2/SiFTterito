@@ -1,13 +1,14 @@
-from typing import Tuple
 from Crypto.Cipher import PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import AES
 from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
-
+from Crypto.Hash import SHA256
+from lib.constants import get_base_folder
 
 def decryptLoginRequestETK(etk: bytes) -> bytes:
-    key = RSA.importKey(open('src/server/crypto_key/private_key.pem').read())
+    path = get_base_folder() / 'crypto_key/private_key.pem'
+    key = RSA.importKey(open(path,'rt').read())
     cipher = PKCS1_OAEP.new(key)
     tk = cipher.decrypt(etk)
     return tk
@@ -61,3 +62,6 @@ def loginFunction(username: str, password: str) -> bool:
     pwHash = scrypt(bytes(password, 'utf-8'), salt, 128, 2**14, 8, 1)
 
     return pwHash == origi_password
+
+def getHash(content : bytes) -> str:
+    return SHA256.new(content)

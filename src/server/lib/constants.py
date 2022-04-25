@@ -1,4 +1,7 @@
 
+from pathlib import Path
+
+
 class MTPConstants:
     LoginRequestType         = bytes.fromhex("00 00")
     LoginResponseType        = bytes.fromhex("00 10")
@@ -11,3 +14,6 @@ class MTPConstants:
     Download0ResponseType    = bytes.fromhex("03 01")
     Download1ResponseType    = bytes.fromhex("03 10")
     VersionNumber            = bytes.fromhex("01 00")
+
+def get_base_folder() -> Path:
+    return Path(__file__).parent.parent
