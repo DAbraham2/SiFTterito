@@ -25,7 +25,7 @@ class MTPMessage(object):
         A 2-byte reserved field which is not used in this version of the protocol (reserved for future versions). Value should be set to 00 00.
     """
 
-    def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes, *, content : bytes) -> None:
+    def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes, *, content: bytes) -> None:
         if (len(ver) is not 2 or
             len(typ) is not 2 or
             len(len) is not 2 or
@@ -58,10 +58,10 @@ class MTPMessage(object):
         header = data[:16]
         epd = data[16:]
         payload = decryptMessage(epd, header, transfer_key)
-        return cls(header[:2], header[2:4], 
-                    header[4:6], header[6:8], 
-                    header[8:14], header[14:16], 
-                    content = payload)
+        return cls(header[:2], header[2:4],
+                   header[4:6], header[6:8],
+                   header[8:14], header[14:16],
+                   content=payload)
 
 
 class MTPv1Message(MTPMessage):
@@ -155,30 +155,38 @@ class LoginResponse(MTPv1Message):
 
 
 class CommandRequest(MTPv1Message):
-    def __init__(self, *, ver: bytes = bytes.fromhex('0100'), 
-                typ: bytes = bytes.fromhex('ffff'), 
-                _len: bytes = bytes(2), 
-                sqn: bytes = bytes(2), 
-                rnd: bytes = get_random_bytes(6), 
-                rsv: bytes = bytes(2),
-                content :bytes = bytes(0)) -> None:
+    def __init__(self, *, ver: bytes = bytes.fromhex('0100'),
+                 typ: bytes = bytes.fromhex('ffff'),
+                 _len: bytes = bytes(2),
+                 sqn: bytes = bytes(2),
+                 rnd: bytes = get_random_bytes(6),
+                 rsv: bytes = bytes(2),
+                 content: bytes = bytes(0)) -> None:
         super().__init__(ver=ver, typ=typ, len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
         self.content = content
 
+
+class CommandResponse(MTPv1Message):
+    def __init__(self, *, ver: bytes = bytes.fromhex('0100'), typ: bytes = bytes.fromhex('ffff'), _len: bytes = bytes(2), sqn: bytes = bytes(2), rnd: bytes = get_random_bytes(6), rsv: bytes = bytes(2)) -> None:
+        super().__init__(ver=ver, typ=typ, len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
+
     @classmethod
     def createFromContent(cls, data: bytes, *, transfer_key: bytes):
-        
-        pass
+        c = cls(typ=MTPConstants.CommandResponseType)
+        c.setContent(data, tk=transfer_key)
+        return c
 
 
 class MessageFactory:
-    def create(header: bytes, body: bytes) -> MTPv1Message:
+    def create(header: bytes, body: bytes, *, transfer_key: bytes) -> MTPv1Message:
         typ = header[2:4]
         match typ:
             case MTPConstants.LoginRequestType:
                 return LoginRequest.createFromContent(header+body)
             case MTPConstants.CommandRequestType:
                 pass
+            case MTPConstants.CommandResponseType:
+                return CommandResponse.createFromContent(header+body, transfer_key=transfer_key)
             case MTPConstants.UploadRequest0Type:
                 pass
             case MTPConstants.UploadRequest1Type:

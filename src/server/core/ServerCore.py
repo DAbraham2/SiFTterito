@@ -19,7 +19,6 @@ class SiFTMainServer(asyncio.Protocol):
     def data_received(self, data: bytes) -> None:
         try:
             mtp_message = self.proxy.receive_msg(data)
-            header, payload = Executor.executeFromMessage(mtp_message)
-            self.proxy.send_msg(header, payload, self.transport)
+            self.proxy.executeMessage(mtp_message)
         except:
             self.proxy.close()

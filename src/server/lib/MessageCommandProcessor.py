@@ -2,17 +2,20 @@
 from asyncio import Transport
 from DirectoryManager import DirManager
 from SiFTMTP import MTPv1Message
-
+from lib.cryptoStuff import getHash
 from constants import MTPConstants
 
-class CommandBase:
 
-    def do(self, *, dm : DirManager) -> str:
+class CommandBase:
+    def __init__(self, payload: bytes) -> None:
+        self.req_hash = getHash(payload)
+
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
         pass
 
 
 class MTPv1Processor:
-    def executeCommand(command: CommandBase, *, directoryManager : DirManager) -> str:
+    def executeCommand(command: CommandBase, *, directoryManager: DirManager) -> str:
         return command.do()
 
 
@@ -22,8 +25,7 @@ class MTPv1CommandFactory:
         cmd = CommandBase()
         match typ:
             case MTPConstants.LoginRequestType:
-                print('Login')
-                cmd = LoginCommand()
+                raise ValueError('')
             case MTPConstants.CommandRequestType:
                 print('Command')
             case MTPConstants.DownloadRequestType:
@@ -37,13 +39,18 @@ class MTPv1CommandFactory:
 
         return cmd
 
-    def getCommandFromMessage(message: MTPv1Message):
+    def getCommandFromMessage(message: MTPv1Message) -> CommandBase:
         cmd = CommandBase()
         match message.typ:
             case MTPConstants.LoginRequestType:
                 raise ValueError('Login should not happen here.')
             case MTPConstants.CommandRequestType:
-                print('Command')
+                com = message.content.decode('utf-8')
+                match com.split('\n')[0]:
+                    case 'chd':
+                        pass
+                    case _:
+                        pass
             case MTPConstants.DownloadRequestType:
                 print('Download')
             case MTPConstants.UploadRequest0Type:
@@ -54,20 +61,6 @@ class MTPv1CommandFactory:
                 raise ValueError('Unkown message type')
 
         return cmd
-
-
-class LoginCommand(CommandBase):
-    """
-    Login command protocol initiater
-    """
-
-    def __init__(self, data: bytes, request, sender) -> None:
-        self.request = request
-        self.sender = sender
-        self.data = data
-
-    def do(*, dm: DirManager) -> str:
-        pass
 
 
 class PwdCommand(CommandBase):
@@ -96,13 +89,19 @@ class ChdCommand(CommandBase):
 
     Changes the current working directory on the server. The name of the target directory is provided as an argument to the chd command.
     """
-    def __init__(self, _path: str) -> None:
+
+    def __init__(self, payload: bytes, _path: str) -> None:
+        super().__init__(payload)
         self.path = _path
 
-    def do(self, *, dm: DirManager) -> str:
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
         if dm is None:
-            raise ValueError('Directory manager cannot be null to execute this command')
-        return dm.chd(self.path)
+            raise ValueError(
+                'Directory manager cannot be null to execute this command')
+
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+        return (header, 'chd\n{}\n{}'.format(self.req_hash, dm.chd(self.path)))
+
 
 class MkdCommand(CommandBase):
     """
