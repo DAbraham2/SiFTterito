@@ -24,3 +24,14 @@ class DirManagementTest(unittest.TestCase):
         b = DirManager('TestUser')
         res = b.chd('test/../../..')
         self.assertEqual(f, res)
+
+    def test_Pwd(self):
+        b = DirManager('TestUser')
+        res = b.pwd()
+        self.assertEqual('~/', res)
+
+    def test_Pwd2(self):
+        b = DirManager('TestUser')
+        b.chd('test')
+        res = b.pwd()
+        self.assertTrue(res.endswith('test'))

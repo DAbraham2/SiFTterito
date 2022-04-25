@@ -1,9 +1,9 @@
 
 from asyncio import Transport
-from DirectoryManager import DirManager
-from SiFTMTP import MTPv1Message
+from lib.DirectoryManager import DirManager
+from lib.SiFTMTP import MTPv1Message
 from lib.cryptoStuff import getHash
-from constants import MTPConstants
+from lib.constants import MTPConstants
 
 
 class CommandBase:

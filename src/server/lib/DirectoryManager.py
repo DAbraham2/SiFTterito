@@ -28,14 +28,20 @@ class DirManager:
             dir = self.current_working_dir / cleaned_tail
             if(not dir.is_dir()):
                 raise ValueError('Directory not exists')
-            self.current_working_dir = normpath(dir)
+            self.current_working_dir = Path(normpath(dir))
 
             return 'success'
         except:
             return 'failure'
 
     def pwd(self) -> str:
-        pass
+        cwd = self.current_working_dir.as_posix()
+        hd = self.home_directory.as_posix()
+        p = cwd.removeprefix(hd)
+        if p is '':
+            p = '~/'
+        
+        return p
 
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory
