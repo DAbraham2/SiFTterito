@@ -1,4 +1,5 @@
 from genericpath import isdir
+from lib2to3.pytree import Base
 from pathlib import Path
 import os
 from os.path import splitdrive, normpath, normcase
@@ -23,25 +24,49 @@ class DirManager:
             cleaned_tail = normpath(normcase(tail))
 
             if self.is_home() and (cleaned_tail.startswith(('/..', '\\..', '//..', '..'))):
-                raise ValueError('Avoid escape.')
+                raise ValueError('You\'re caged AF.')
 
             dir = self.current_working_dir / cleaned_tail
             if(not dir.is_dir()):
                 raise ValueError('Directory not exists')
             self.current_working_dir = Path(normpath(dir))
 
-            return 'success'
-        except:
-            return 'failure'
+            return success(None)
+        except BaseException as err:
+            return failure(err)
 
     def pwd(self) -> str:
-        cwd = self.current_working_dir.as_posix()
-        hd = self.home_directory.as_posix()
-        p = cwd.removeprefix(hd)
-        if p is '':
-            p = '~/'
-        
-        return p
+        try:
+            cwd = self.current_working_dir.as_posix()
+            hd = self.home_directory.as_posix()
+            p = cwd.removeprefix(hd)
+            if p is '':
+                p = '~/'
+            return success(p)
+        except BaseException as err:
+            return failure(err)
+
+    def lst(self) -> str:
+        try:
+            list = ''
+            for item in self.current_working_dir.iterdir():
+                list = list + '{}\n'.format(item.name)
+
+            list = list.removesuffix('\n')
+            return success(list)
+        except BaseException as err:
+            return failure(err)
 
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory
+
+
+def success(text: str) -> str:
+    s = 'success'
+    if text is not '' or text is not None:
+        s = s + '\n{}'.format(text)
+    return s
+
+
+def failure(err: BaseException) -> str:
+    return 'failure\n{}'.format(err)

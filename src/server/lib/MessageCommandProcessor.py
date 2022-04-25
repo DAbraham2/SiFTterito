@@ -1,9 +1,10 @@
 
 from asyncio import Transport
+
+from lib.constants import MTPConstants
+from lib.cryptoStuff import getHash
 from lib.DirectoryManager import DirManager
 from lib.SiFTMTP import MTPv1Message
-from lib.cryptoStuff import getHash
-from lib.constants import MTPConstants
 
 
 class CommandBase:
@@ -51,6 +52,8 @@ class MTPv1CommandFactory:
                         cmd = ChdCommand(message.content, com.split('\n')[1])
                     case 'pwd':
                         cmd = PwdCommand(message.content)
+                    case 'lst':
+                        cmd = LstCommand(message.content)
                     case _:
                         pass
             case MTPConstants.DownloadRequestType:
@@ -89,7 +92,12 @@ class LstCommand(CommandBase):
     Returns to the client the list of files and directories in the current working directory on the server.
     """
 
-    pass
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
+        if dm is None:
+            raise ValueError('DirManager cannot be null')
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+        list = dm.lst()
+        return (header, 'lst\n{}\n{}'.format(self.req_hash, list))
 
 
 class ChdCommand(CommandBase):
