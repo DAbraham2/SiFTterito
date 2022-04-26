@@ -1,6 +1,8 @@
 
 from asyncio import Transport
 
+from requests import head
+
 from lib.constants import MTPConstants
 from lib.cryptoStuff import getHash
 from lib.DirectoryManager import DirManager
@@ -56,8 +58,10 @@ class MTPv1CommandFactory:
                         cmd = LstCommand(message.content)
                     case 'mkd':
                         cmd = MkdCommand(message.content)
+                    case 'del':
+                        cmd = DelCommand(message.content)
                     case _:
-                        pass
+                        raise ValueError('Unkown message type')
             case MTPConstants.DownloadRequestType:
                 print('Download')
             case MTPConstants.UploadRequest0Type:
@@ -151,7 +155,18 @@ class DelCommand(CommandBase):
     Deletes a file or a directory on the server. The name of the file or directory to be deleted is provided as an argument to the del command.
     """
 
-    pass
+    def __init__(self, payload: bytes) -> None:
+        super().__init__(payload)
+        lines = payload.decode('utf-8').split('\n')
+        self.path = lines[1]
+
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
+        if dm is None:
+            raise ValueError()
+        res = dm.delete(self.path)
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+
+        return (header, 'del\n{}\n{}'.format(self.req_hash, res))
 
 
 class UplCommand(CommandBase):

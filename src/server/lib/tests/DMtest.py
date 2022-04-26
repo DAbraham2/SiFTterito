@@ -6,31 +6,32 @@ import string
 s = 'success'
 f = 'failure'
 
+
 class DirManagementTest(unittest.TestCase):
     def testNonExistantFolder(self):
         b = DirManager('TestUser')
         res = b.chd('feri')
-        self.assertEqual(f, res)
-    
+        self.assertTrue(res.startswith(f))
+
     def test_EscapeHome(self):
         b = DirManager('TestUser')
         res = b.chd('..')
-        self.assertEqual(f, res)
+        self.assertTrue(res.startswith(f))
 
     def test_ChangeDir(self):
         b = DirManager('TestUser')
         res = b.chd('test')
-        self.assertEqual(s, res)
+        self.assertTrue(res.startswith(s))
 
     def test_EscapeDir(self):
         b = DirManager('TestUser')
         res = b.chd('test/../../..')
-        self.assertEqual(f, res)
+        self.assertTrue(res.startswith(f))
 
     def test_Pwd(self):
         b = DirManager('TestUser')
         res = b.pwd()
-        self.assertEqual('~/', res)
+        self.assertEqual(s+'\n~/', res)
 
     def test_Pwd2(self):
         b = DirManager('TestUser')
@@ -45,6 +46,13 @@ class DirManagementTest(unittest.TestCase):
         self.assertFalse(res.find('fer.txt') is -1)
         self.assertFalse(res.find('test') is -1)
 
+    def test_Del1(self):
+        b = DirManager('testuser')
+        res = b.delete('random.txt')
+        self.assertEqual(s, res)
+        res = b.delete('random.txt')
+        self.assertFalse(res.startswith(s))
+
     def test_Mkd1(self):
         b = DirManager('TestUser')
         res = b.mkd('test')
@@ -52,7 +60,7 @@ class DirManagementTest(unittest.TestCase):
 
     def test_Mkd2(self):
         b = DirManager('TestUser')
-        dirname = ''.join(random.choice(string.ascii_letters)for i in range(10))
+        dirname = ''.join(random.choice(string.ascii_letters)
+                          for i in range(10))
         res = b.mkd(dirname)
         self.assertTrue(res.startswith('success'))
-        self.assertTrue(res.endswith(dirname.lower()))
