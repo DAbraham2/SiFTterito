@@ -1,9 +1,9 @@
-from genericpath import isdir
-from lib2to3.pytree import Base
-from pathlib import Path
 import os
-from os.path import splitdrive, normpath, normcase
 import re
+from os.path import normcase, normpath, splitdrive
+from pathlib import Path
+from xml.dom import ValidationErr
+
 from lib.constants import get_base_folder
 
 
@@ -19,11 +19,9 @@ class DirManager:
 
     def chd(self, directory: str) -> str:
         try:
-            cleaned_dir = re.sub('[^A-Za-z0-9\/:.]+', '', directory)
-            _, tail = splitdrive(cleaned_dir)
-            cleaned_tail = normpath(normcase(tail))
+            cleaned_tail = cleanPath(directory)
 
-            if self.is_home() and (cleaned_tail.startswith(('/..', '\\..', '//..', '..'))):
+            if self.preventEscape(cleaned_tail):
                 raise ValueError('You\'re caged AF.')
 
             dir = self.current_working_dir / cleaned_tail
@@ -57,8 +55,30 @@ class DirManager:
         except BaseException as err:
             return failure(err)
 
+    def mkd(self, directory: str) -> str:
+        try:
+            clean = cleanPath(directory)
+
+            if self.preventEscape(clean):
+                raise ValueError('You\'re caged AF.')
+
+            dir = self.current_working_dir / clean
+            dir = Path(normpath(dir))
+            if dir.exists():
+                raise ValueError('Directory already exists')
+
+            dir.mkdir()
+
+            return success(clean)
+        except BaseException as err:
+            return failure(err)
+        
+
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory
+
+    def preventEscape(self, path : str)->bool:
+        return self.is_home() and (path.startswith(('/..', '\\..', '//..', '..')))
 
 
 def success(text: str) -> str:
@@ -70,3 +90,8 @@ def success(text: str) -> str:
 
 def failure(err: BaseException) -> str:
     return 'failure\n{}'.format(err)
+
+def cleanPath(p:str)->str:
+    cleaned_dir = re.sub('[^A-Za-z0-9\/:.]+', '', p)
+    _, tail = splitdrive(cleaned_dir)
+    return normpath(normcase(tail))
