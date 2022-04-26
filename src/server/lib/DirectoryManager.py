@@ -2,7 +2,6 @@ import os
 import re
 from os.path import normcase, normpath, splitdrive
 from pathlib import Path
-from xml.dom import ValidationErr
 
 from lib.constants import get_base_folder
 
@@ -69,29 +68,55 @@ class DirManager:
 
             dir.mkdir()
 
-            return success(clean)
+            return success('')
         except BaseException as err:
             return failure(err)
-        
+
+    def delete(self, path: str) -> str:
+        try:
+            clean = cleanPath(path)
+            if self.preventEscape(clean):
+                raise ValueError('You\'re caged AF.')
+
+            if self.is_home() and clean is '':
+                raise ValueError('Cannot delete home directory')
+
+            p = self.current_working_dir / clean
+            if not p.exists():
+                raise ValueError('Path not exists')
+
+            if p.is_file():
+                os.remove(p)
+            else:
+                p.rmdir()
+
+            return success('')
+        except BaseException as err:
+            return failure(err)
 
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory
 
-    def preventEscape(self, path : str)->bool:
+    def preventEscape(self, path: str) -> bool:
         return self.is_home() and (path.startswith(('/..', '\\..', '//..', '..')))
 
 
-def success(text: str) -> str:
+def success(text: str = '') -> str:
     s = 'success'
-    if text is not '' or text is not None:
+    t = text.strip()
+    if t is '':
+        return s
+    else:
         s = s + '\n{}'.format(text)
+
     return s
 
 
 def failure(err: BaseException) -> str:
     return 'failure\n{}'.format(err)
 
-def cleanPath(p:str)->str:
+
+def cleanPath(p: str) -> str:
     cleaned_dir = re.sub('[^A-Za-z0-9\/:.]+', '', p)
     _, tail = splitdrive(cleaned_dir)
     return normpath(normcase(tail))
