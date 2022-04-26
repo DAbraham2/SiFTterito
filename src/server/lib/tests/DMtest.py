@@ -1,5 +1,7 @@
 from lib.DirectoryManager import DirManager
 import unittest
+import random
+import string
 
 s = 'success'
 f = 'failure'
@@ -42,3 +44,15 @@ class DirManagementTest(unittest.TestCase):
         self.assertTrue(res.startswith('success'))
         self.assertFalse(res.find('fer.txt') is -1)
         self.assertFalse(res.find('test') is -1)
+
+    def test_Mkd1(self):
+        b = DirManager('TestUser')
+        res = b.mkd('test')
+        self.assertFalse(res.startswith('success'))
+
+    def test_Mkd2(self):
+        b = DirManager('TestUser')
+        dirname = ''.join(random.choice(string.ascii_letters)for i in range(10))
+        res = b.mkd(dirname)
+        self.assertTrue(res.startswith('success'))
+        self.assertTrue(res.endswith(dirname.lower()))

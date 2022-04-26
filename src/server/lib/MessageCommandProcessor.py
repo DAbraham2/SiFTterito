@@ -54,6 +54,8 @@ class MTPv1CommandFactory:
                         cmd = PwdCommand(message.content)
                     case 'lst':
                         cmd = LstCommand(message.content)
+                    case 'mkd':
+                        cmd = MkdCommand(message.content)
                     case _:
                         pass
             case MTPConstants.DownloadRequestType:
@@ -79,7 +81,7 @@ class PwdCommand(CommandBase):
         if dm is None:
             raise ValueError('')
 
-        r='pwd\n{}\n'.format(self.req_hash)
+        r = 'pwd\n{}\n'.format(self.req_hash)
         r = r + dm.pwd()
         header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
         return (header, r)
@@ -127,7 +129,19 @@ class MkdCommand(CommandBase):
     Creates a new directory on the server. The name of the directory to be created is provided as an argument to the mkd command.
     """
 
-    pass
+    def __init__(self, payload: bytes) -> None:
+        super().__init__(payload)
+        com = payload.decode('utf-8')
+        lines = com.split('\n')
+        self.dirName = lines[1]
+
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
+        if dm is None:
+            raise ValueError('')
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+        result = dm.mkd(self.dirName)
+
+        return (header, 'mkd\n{}\n{}'.format(self.req_hash, result))
 
 
 class DelCommand(CommandBase):
