@@ -43,17 +43,32 @@ class MTPResponseMessage:
         header_rnd = header[8:14]  # random is encoded on 7 bytes
         header_rsv = header[14:16]  # random is encoded on 7 bytes
 
+        # version check
+        print("Checking header version")
+        expected_ver = b'\x01\x00'
+        if header_version != expected_ver:
+            print(f'Header version is not matching:\n'
+                  f'Expected: {expected_ver}\n'
+                  f'Message header version: {header_version}')
+            return 0, 0
+
         # check length
         print("Checking response length")
         if len(self.message) != int.from_bytes(header_length, byteorder='big'):
-            print("Length did not match")
+            print(f"Length did not match:\n"
+                  f"Message length: {len(self.message)}\n"
+                  f"Lenght in header: {int.from_bytes(header_length, byteorder='big')}")
             return 0, 0
 
         # check sequence number
         print("Checking sequence number")
         res_sqn = int.from_bytes(header_sqn, byteorder='big')
-        if res_sqn <= self.sqn:
-            print("Sequence number was lower or equal")
+        sqn = int.from_bytes(self.sqn, byteorder='big')
+
+        if res_sqn <= sqn:
+            print(f"Sequence number was lower or equal:\n"
+                  f"Expected higher than: {sqn}\n"
+                  f"Got: {res_sqn}")
             return 0, 0
 
         # check message type
@@ -94,26 +109,33 @@ class MTPRequestMessage:
         print(f"Creating the header...")
         return self.ver + self.typ + self.len + self.sqn + self.fresh_random + self.rsv
 
-    def create_request(self):
-        pass
+    def create_request(self, key):
+        print("Generating a request...")
+        enc_pyl, mac = self.encrypt_message(key)
+        full_message = self.header + enc_pyl + mac
+        return full_message
+
 
     def calc_message_len(self):
         print(f"Calculating message length")
         # ver = 2, typ = 2, len = 2, sqn = 2, rnd = 6, rsv = 2
-        header_length = 16
-        payload_length = len(self.message)
-        # padding_length = AES.block_size - payload_length % AES.block_size
-        mac_length = 12
-        msg_length = header_length + payload_length + mac_length
-        print(f"Message length: {msg_length}\n"
-              f"Message length in bytes: {msg_length.to_bytes(2, 'big')}")
-        return msg_length.to_bytes(2, 'big')
+        msg_length = 0
+        if self.typ == b'\x00\x00':
+            msg_length = self.login_message_length()
+        else:
+            header_length = 16
+            payload_length = len(self.message)
+            mac_length = 12
+            msg_length_int = header_length + payload_length + mac_length
+            msg_length = msg_length_int.to_bytes(2, 'big')
+        print(f"Message length: {msg_length}")
+        return msg_length
 
     def mtp_login_request(self, pubkey):
         print(f"MTP Login request function")
         tk, enc_pyl, mac = self.encrypt_first_message()
         print("OK")
-        self.len = self.login_message_length()
+        #self.len = self.login_message_length()
         # Encrypt the temp key with the public RSA key
         print(f"Encrypt TK using public key...")
         enc_tk = None
@@ -124,16 +146,24 @@ class MTPRequestMessage:
         except Exception as e:
             print(e)
         full_message = self.header + enc_pyl + mac + enc_tk
+        print(f"\nmac langth: {len(mac)}\n"
+              f"header length: {len(self.header)}\n"
+              f"pyl length: {len(enc_pyl)}\n"
+              f"ectk len: {len(enc_tk)}\n")
         print(f"Full message sent back: {full_message}")
         return full_message, tk
 
     def generate_mac(self, key, nonce, encrypted_payload):
         print(f"Generating the mac...")
         self.header = self.create_header()
-        MAC = HMAC.new(key)
+        #MAC = HMAC.new(key)
         # ? JO A SORREND???
-        MAC.update(self.header + nonce + encrypted_payload)
-        mac = MAC.digest()
+        #MAC.update(self.header + nonce + encrypted_payload)
+        #mac = MAC.digest()
+        cipehr = AES.new(key, AES.MODE_GCM, nonce=nonce, mac_len=12)
+        cipehr.update(self.header)
+        cipehr.update(encrypted_payload)
+        mac = cipehr.digest()
         print(f"Mac generated: {mac}")
         return mac
 
@@ -142,11 +172,25 @@ class MTPRequestMessage:
         # ver = 2, typ = 2, len = 2, sqn = 2, rnd = 6, rsv = 2
         header_length = 16
         payload_length = len(self.message)
+        print(f"Payload length: {payload_length}")
         mac_length = 12
         msg_length = header_length + payload_length + mac_length + 256  # encrypted temporary key
         print(f"Login message length: {msg_length}\n"
               f"Login message length in bytes: {msg_length.to_bytes(2, 'big')}")
         return msg_length.to_bytes(2, 'big')
+
+    def encrypt_message(self, key):
+        print("Encrypting the message...")
+        nonce = self.sqn + self.fresh_random
+        ENC = AES.new(key, AES.MODE_GCM, nonce)
+        encrypted_payload = None
+        try:
+            encrypted_payload = ENC.encrypt(self.message.encode('utf-8'))
+            print("Payload encrypted")
+        except Exception as e:
+            print(e)
+        print(f"Encrypted: {encrypted_payload}")
+        return encrypted_payload, self.generate_mac(key, nonce, encrypted_payload)
 
     def encrypt_first_message(self):
         print(f"Encrypting the login message...")
@@ -155,7 +199,6 @@ class MTPRequestMessage:
         ENC = AES.new(tk, AES.MODE_GCM, nonce)
         encrypted_payload = None
         try:
-            #TODO hibakodot megnezni
             encrypted_payload = ENC.encrypt(self.message.encode('utf-8'))
             print("Payload encrypted")
         except Exception as e:
@@ -246,12 +289,37 @@ class LoginResponseMessage:
         return paylod_array[1], self.sqn+1
 
 
-class CommandRequestMessage(MessageBase):
-    pass
+class CommandRequestMessage:
+    def __init__(self, message, sqn, key):
+        self.message = message
+        self.key = key
+        self.typ = b'\x01\x00'
+        self.sqn = sqn
+
+    def command_request(self):
+        return self.handle_message_to_mtp(), self.create_request_sha256()
+
+    def handle_message_to_mtp(self):
+        return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
+
+    def create_request_sha256(self):
+        print("Creating the SHA256 hash of the message...")
+        h = SHA256.new()
+        h.update(str.encode(self.message))
+        hashed = h.digest()
+        print(f"Message hash: {h.hexdigest()}")
+        return hashed
 
 
-class CommandResponseMessage(MessageBase):
-    pass
+class CommandResponseMessage:
+    def __init__(self):
+        pass
+
+    def command_response(self):
+        # returns the decrypted message
+        pass
+
+
 
 
 class UploadRequestMessage(MessageBase):

@@ -10,7 +10,7 @@ from Crypto.Protocol.KDF import HKDF
 file_dir = os.path.dirname(__file__)
 protocol_dir = os.path.join(file_dir, '..', 'protocol')
 sys.path.append(protocol_dir)
-from SiFT_MTP import LoginRequestMessage, LoginResponseMessage
+from SiFT_MTP import LoginRequestMessage, LoginResponseMessage, CommandRequestMessage, CommandResponseMessage
 
 
 class SiFTClient:
@@ -31,13 +31,13 @@ class SiFTClient:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                 sock.connect((self.host, self.port))
                 print("Connection established")
+
                 # LOGIN
                 username, password = self.ui.login_window(self.logged_in)
                 self.sqn = (self.sqn + 1).to_bytes(2, byteorder='big')
                 print("Starting Login Protocol")
                 login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
-                                                                                               [username, password],
-                                                                                               self.sqn).login_request()
+                                                                                               [username, password],                                                                       self.sqn).login_request()
                 print(f"Login request: \nUsername: {username}\n"
                       f"Password: {password}\n"
                       f"SQN: {self.sqn}\n"
@@ -46,27 +46,44 @@ class SiFTClient:
                       f"My random: {client_random}\n"
                       f"Temp key: {temp_key}")
                 try:
+
                     sock.sendall(login_req_message)
                     print("Message sent!")
                 except Exception as e:
-                    print(e)
-                login_res = str(sock.recv(1024), "utf-8")
+                    print(f"MS: {e}")
+                login_res = sock.recv(1024)
                 print(f"Login response: {login_res}")
                 server_random, self.sqn = LoginResponseMessage(login_res, self.sqn, temp_key,
                                                                message_hash).parse_message()
                 if server_random == 0:
                     sock.close()
                 self.generate_final_key(client_random, server_random, message_hash)
-                sleep(10)
+
                 command = self.ui.command_window(username)
                 while command[0] != "exit":
                     command = self.ui.command_window(username)
                     formatted_message = self.command_format(command)
 
-                sock.sendall(bytes("test", "utf-8"))
-                received = str(sock.recv(1024), "utf-8")
+                    command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
+                                                                              self.final_key).command_request()
+                    print(f"Login request: \nUsername: {username}\n"
+                          f"SQN: {self.sqn}\n"
+                          f"Request message: {command_req_message}\n"
+                          f"Message hash: {message_hash}\n")
+                    try:
+                        sock.sendall(command_req_message)
+                        print("Message sent!")
+                    except Exception as e:
+                        print(f"Problem with sending the message: {e}")
+
+                    received = sock.recv(1024)
+                    print(f"Command esponse: {received}")
+
+                    decrypted_message = CommandResponseMessage().command_response()
+                    print(decrypted_message)
+
         except Exception as e:
-            print("An error was occured during the process")
+            print(f"An error was occured during the process: {e}")
 
     def generate_final_key(self, client_random, server_random, request_hash):
         salt = request_hash
