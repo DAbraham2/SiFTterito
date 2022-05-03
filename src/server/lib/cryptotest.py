@@ -21,3 +21,7 @@ class LoginTest(unittest.TestCase):
     def test3(self):
         result = loginFunction('charlie', 'ccc')
         self.assertTrue(result)
+
+    def test4(self):
+        result = loginFunction('bela', 'ferenc')
+        self.assertFalse(result)
