@@ -5,6 +5,12 @@ useful links:
 [link2](https://realpython.com/documenting-python-code/)
 [link3](https://realpython.com/working-with-files-in-python/)
 
-## Example user
+## Example users
 * Username: alice
-* Password: WonDerLanD
+* Password: aaa
+
+* Username: bob
+* Password: bbb
+
+* Username: charlie
+* Password: ccc

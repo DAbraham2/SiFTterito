@@ -1,8 +1,6 @@
 
 from asyncio import Transport
 
-from requests import head
-
 from lib.constants import MTPConstants
 from lib.cryptoStuff import getHash
 from lib.DirectoryManager import DirManager
