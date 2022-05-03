@@ -6,8 +6,10 @@ from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256
 from lib.constants import get_base_folder
 
+basepath = get_base_folder() / 'crypto_key'
+
 def decryptLoginRequestETK(etk: bytes) -> bytes:
-    path = get_base_folder() / 'crypto_key/private_key.pem'
+    path = basepath / 'private_key.pem'
     key = RSA.importKey(open(path,'rt').read())
     cipher = PKCS1_OAEP.new(key)
     tk = cipher.decrypt(etk)
@@ -44,7 +46,8 @@ def encryptMessage(payload: bytes, header: bytes, tk: bytes) -> tuple[bytes, byt
 
 def loginFunction(username: str, password: str) -> bool:
     usr_dic = {}
-    with open('users.passwd', 'rt') as f:
+    path = basepath / 'users.passwd'
+    with open(path, 'rt') as f:
         lines = f.readlines()
         for l in lines:
             l = l.split('\t')
