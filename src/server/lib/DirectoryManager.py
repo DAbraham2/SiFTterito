@@ -1,6 +1,6 @@
 import os
 import re
-from os.path import normcase, normpath, splitdrive
+from os.path import normcase, normpath, splitdrive, commonprefix
 from pathlib import Path
 
 from lib.constants import get_base_folder
@@ -94,10 +94,29 @@ class DirManager:
         except BaseException as err:
             return failure(err)
 
+    def init_dnl(self, path: str) -> str:
+        try:
+            c = cleanPath(path)
+            if self.preventEscape(c):
+                raise ValueError('You\'re caged AF.')
+            
+            p = Path(normpath(self.current_working_dir/c))
+
+
+            return accept()
+        except BaseException as err:
+            return reject(err)
+        
+
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory
 
     def preventEscape(self, path: str) -> bool:
+        p = normpath(self.current_working_dir / path)
+        common = commonprefix([p, self.home_directory])
+        if not (len(common) is len(self.home_directory)):
+            return False
+            
         return self.is_home() and (path.startswith(('/..', '\\..', '//..', '..')))
 
 
@@ -111,10 +130,14 @@ def success(text: str = '') -> str:
 
     return s
 
+def accept(text: str = '')->str:
+    return 'accept\n'+text
 
 def failure(err: BaseException) -> str:
     return 'failure\n{}'.format(err)
 
+def reject(err: BaseException)->str:
+    return 'reject\n{}'.format(err)
 
 def cleanPath(p: str) -> str:
     cleaned_dir = re.sub('[^A-Za-z0-9\/:.]+', '', p)
