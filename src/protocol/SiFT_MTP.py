@@ -31,6 +31,41 @@ class MTPResponseMessage:
         self.message = message
         self.sqn = req_sqn
         self.key = key
+        self.header_ver = b'\x01\x00'
+
+    def check_version(self, header_version):
+        print("Checking header version")
+        if header_version != self.header_ver:
+            print(f'Header version is not matching:\n'
+                  f'Expected: {self.header_ver}\n'
+                  f'Message header version: {header_version}')
+            return False
+        return True
+
+    def check_length(self, header_length):
+        print("Checking response length")
+        if len(self.message) != int.from_bytes(header_length, byteorder='big'):
+            print(f"Length did not match:\n"
+                  f"Message length: {len(self.message)}\n"
+                  f"Lenght in header: {int.from_bytes(header_length, byteorder='big')}")
+            return False
+        return True
+
+    def check_sqn(self, res_sqn, sqn):
+        print("Checking sequence number")
+        if res_sqn <= sqn:
+            print(f"Sequence number was lower or equal:\n"
+                  f"Expected higher than: {sqn}\n"
+                  f"Got: {res_sqn}")
+            return False
+        return True
+
+    def check_type(self, res_type, expected_type):
+        print("Checking response type")
+        if expected_type != res_type:
+            print("Type mismatch")
+            return False
+        return True
 
     def mtp_response(self):
         header = self.message[0:16]  # header is 16 bytes long
@@ -43,54 +78,31 @@ class MTPResponseMessage:
         header_rnd = header[8:14]  # random is encoded on 7 bytes
         header_rsv = header[14:16]  # random is encoded on 7 bytes
 
-        # version check
-        print("Checking header version")
-        expected_ver = b'\x01\x00'
-        if header_version != expected_ver:
-            print(f'Header version is not matching:\n'
-                  f'Expected: {expected_ver}\n'
-                  f'Message header version: {header_version}')
-            return 0, 0
-
-        # check length
-        print("Checking response length")
-        if len(self.message) != int.from_bytes(header_length, byteorder='big'):
-            print(f"Length did not match:\n"
-                  f"Message length: {len(self.message)}\n"
-                  f"Lenght in header: {int.from_bytes(header_length, byteorder='big')}")
-            return 0, 0
-
-        # check sequence number
-        print("Checking sequence number")
+        # check version, length, seq number and message type
         res_sqn = int.from_bytes(header_sqn, byteorder='big')
         sqn = int.from_bytes(self.sqn, byteorder='big')
 
-        if res_sqn <= sqn:
-            print(f"Sequence number was lower or equal:\n"
-                  f"Expected higher than: {sqn}\n"
-                  f"Got: {res_sqn}")
-            return 0, 0
-
-        # check message type
-        print("Checking response type")
         res_type = int.from_bytes(header_type, byteorder='big')
         expected_type = int.from_bytes(self.expected_type, byteorder='big')
-        if expected_type != res_type:
-            print("Type mismatch")
-            return 0, 0
 
-        # check mac
-        print("Checking response mac")
-        nonce = header_sqn + header_rnd
-        AE = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=12)
-        AE.update(header + nonce + self.message)
-        try:
-            decrypted_payload = AE.decrypt_and_verify(encrypted_payload, mac)
-        except Exception as e:
-            print(f"Error: {e}")
-            return 0, 0
+        decrypted_payload = None
+        if self.check_version(header_version) and \
+                self.check_sqn(res_sqn, sqn) and \
+                self.check_type(res_type, expected_type) and \
+                self.check_length(header_length):
+            # check mac
+            print("Checking response mac")
+            nonce = header_sqn + header_rnd
+            AE = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=12)
+            AE.update(header + nonce + self.message)
+            try:
+                print(mac)
+                decrypted_payload = AE.decrypt_and_verify(encrypted_payload, mac)
+            except Exception as e:
+                print(f"Error: {e}")
+                return None, None
 
-        return header, decrypted_payload
+        return decrypted_payload
 
 
 class MTPRequestMessage:
@@ -114,7 +126,6 @@ class MTPRequestMessage:
         enc_pyl, mac = self.encrypt_message(key)
         full_message = self.header + enc_pyl + mac
         return full_message
-
 
     def calc_message_len(self):
         print(f"Calculating message length")
@@ -209,12 +220,6 @@ class MTPRequestMessage:
               f"encrypted payload: {encrypted_payload}")
         return tk, encrypted_payload, self.generate_mac(tk, nonce, encrypted_payload)
 
-    # TODO The client and the server also send random values
-    #  client_random and server_random, respectively,
-    #  in the payload of the login request and login response messages,
-    #  and they use these random numbers to create the final transfer key
-    #  that they will use in the rest of the session.
-
 
 class LoginRequestMessage:
     def __init__(self, key_path, credentials, sqn):
@@ -276,17 +281,16 @@ class LoginResponseMessage:
         self.type = b'\x00\x10'
         self.sqn = original_sqn
         self.payload = None
-        self.header = None
         self.message = login_req_message
 
     def parse_message(self):
-        self.header, self.payload = MTPResponseMessage(self.message, self.sqn, self.type, self.key).mtp_response()
-        if self.header == 0:
-            return 0, 0
+        self.payload = MTPResponseMessage(self.message, self.sqn, self.type, self.key).mtp_response()
+        if self.payload is None:
+            return None, None
         paylod_array = self.payload.split('\n')
         if paylod_array[0] != self.original_hash:
-            return 0, 0
-        return paylod_array[1], self.sqn+1
+            return None, None
+        return paylod_array, (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
 
 
 class CommandRequestMessage:

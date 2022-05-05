@@ -4,6 +4,7 @@ from os import system
 from os import name as osname
 import socket
 import sys
+import logging
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF
 
@@ -15,81 +16,101 @@ from SiFT_MTP import LoginRequestMessage, LoginResponseMessage, CommandRequestMe
 
 class SiFTClient:
     def __init__(self, HOST, PORT, pubkey_path):
-        print("Initialization...")
+        logging.basicConfig(filename='SiFTClient.log', encoding='utf-8', level=logging.DEBUG)
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug('__init__')
+        self.logger.info("Initialization")
         self.ui = self.UI()
         self.host = HOST
         self.port = PORT
         self.logged_in = False
         self.pubkey_path = pubkey_path
-        self.sqn = 0
+        self.sqn = b'\x00\x00'
         self.final_key = None
-        self.operation()
+        self.sock = None
+
+    def connect(self):
+        self.logger.debug('connect')
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((self.host, self.port))
+            self.logger.info("Connection established")
+            return sock
+        except Exception as e:
+            self.logger.error(f"Error during connecting: {e}")
+
+    def increase_sqn(self):
+        self.sqn = (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
 
     def operation(self):
-        print("Connection is about to start:")
+        self.logger.debug('operation')
+        self.sock = self.connect()
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.connect((self.host, self.port))
-                print("Connection established")
+            # sock.connect((self.host, self.port))
 
-                # LOGIN
-                username, password = self.ui.login_window(self.logged_in)
-                self.sqn = (self.sqn + 1).to_bytes(2, byteorder='big')
-                print("Starting Login Protocol")
-                login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
-                                                                                               [username, password],                                                                       self.sqn).login_request()
-                print(f"Login request: \nUsername: {username}\n"
-                      f"Password: {password}\n"
-                      f"SQN: {self.sqn}\n"
-                      f"Login request message: {login_req_message}\n"
-                      f"Message hash: {message_hash}\n"
-                      f"My random: {client_random}\n"
-                      f"Temp key: {temp_key}")
-                try:
+            # LOGIN
+            username, password = self.ui.login_window(self.logged_in)
+            self.increase_sqn()
+            self.logger.info("Starting Login Protocol")
+            login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
+                                                                                           [username, password],
+                                                                                           self.sqn).login_request()
+            self.logger.debug(f"Login request: \nUsername: {username}\n"
+                              f"Password: {password}\n"
+                              f"SQN: {self.sqn}\n"
+                              f"Login request message: {login_req_message}\n"
+                              f"Message hash: {message_hash}\n"
+                              f"My random: {client_random}\n"
+                              f"Temp key: {temp_key}")
+            try:
+                self.sock.sendall(login_req_message)
+                self.logger.info("Message sent")
+            except Exception as e:
+                self.logger.error(f"MS: {e}")
+            login_res = self.sock.recv(1024)
+            self.logger.debug(f"Login response: {login_res}")
+            dec_payload, self.sqn = LoginResponseMessage(login_res, self.sqn, temp_key,
+                                                         message_hash).parse_message()
+            if not dec_payload:
+                self.sock.close()
+                self.logger.info("Connection closed")
+            self.generate_final_key(client_random, dec_payload[1], message_hash)
 
-                    sock.sendall(login_req_message)
-                    print("Message sent!")
-                except Exception as e:
-                    print(f"MS: {e}")
-                login_res = sock.recv(1024)
-                print(f"Login response: {login_res}")
-                server_random, self.sqn = LoginResponseMessage(login_res, self.sqn, temp_key,
-                                                               message_hash).parse_message()
-                if server_random == 0:
-                    sock.close()
-                self.generate_final_key(client_random, server_random, message_hash)
-
+            command = self.ui.command_window(username)
+            while command[0] != "exit":
                 command = self.ui.command_window(username)
-                while command[0] != "exit":
-                    command = self.ui.command_window(username)
-                    formatted_message = self.command_format(command)
+                formatted_message = self.command_format(command)
 
-                    command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
-                                                                              self.final_key).command_request()
-                    print(f"Login request: \nUsername: {username}\n"
-                          f"SQN: {self.sqn}\n"
-                          f"Request message: {command_req_message}\n"
-                          f"Message hash: {message_hash}\n")
-                    try:
-                        sock.sendall(command_req_message)
-                        print("Message sent!")
-                    except Exception as e:
-                        print(f"Problem with sending the message: {e}")
+                command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
+                                                                          self.final_key).command_request()
+                self.logger.debug(f"Login request: \nUsername: {username}\n"
+                                  f"SQN: {self.sqn}\n"
+                                  f"Request message: {command_req_message}\n"
+                                  f"Message hash: {message_hash}\n")
+                try:
+                    self.sock.sendall(command_req_message)
+                    self.logger.info("Message sent!")
+                except Exception as e:
+                    self.logger.error(f"Problem with sending the message: {e}")
 
-                    received = sock.recv(1024)
-                    print(f"Command esponse: {received}")
+                received = self.sock.recv(1024)
+                self.logger.debug(f"Command response: {received}")
 
-                    decrypted_message = CommandResponseMessage().command_response()
-                    print(decrypted_message)
+                decrypted_message = CommandResponseMessage().command_response()
+                result = decrypted_message.split('\n')
+                self.UI.result_window(result)
 
         except Exception as e:
-            print(f"An error was occured during the process: {e}")
+            self.logger.error(f"An error was occured during the process: {e}")
 
     def generate_final_key(self, client_random, server_random, request_hash):
+        self.logger.debug("generate_final_key")
+        # bytenak kell lenniuk
         salt = request_hash
         self.final_key = HKDF(client_random + server_random, 32, salt, SHA256, 1)
 
     def command_format(self, command):
+        self.logger.debug("command_format")
         if command[0] == "upl":
             size = os.path.getsize(command[1])
             upload_file = open(command[1], 'rb')
@@ -100,14 +121,14 @@ class SiFTClient:
                 chunk = upload_file.read(1024)
                 hash_file.update(chunk)
             hashed = hash_file.hexdigest()
-            print(f"File hash: {hashed}")
+            self.logger.debug(f"File hash: {hashed}")
 
             command.append(str(size))
             command.append(hashed)
-
-        message = command[0] + '\n'
-        for com in command:
-            message = message + com + '\n'
+            upload_file.close()
+        message = command[0]
+        for param in range(1, len(command)):
+            message = message + '\n' + command[param]
         return message
 
     class UI:
@@ -187,23 +208,48 @@ class SiFTClient:
                 self.clear_screen()
                 print(f"Are you sure you want to {text}?")
                 answer = input("Y/N")
-                if answer.upper() == "Y" or answer.upper == "N":
-                    return answer
-
-        '''
-        def result_window(self, result):
-            if result[2] == "failed":
-                print(f"FAIL COMMAND: {result[3]}")
-            else:
-                if result[2] == "reject":
-                    if result[0] == "dnl":
-                        print(f"FAILED DOWNLOAD: {result[3]}")
-                    else:
-                        print(f"FAILED UPLOAD: {result[3]}")
+                if answer.upper() == "Y":
+                    return True
                 else:
-                    for row in result:
-                        print(row)
-        '''
+                    if answer.upper() == "N":
+                        return False
 
-print("Starting...")
-SiFTClient("localhost", 5150, "public.pem")
+        def result_window(self, result):
+            # not tested
+            self.clear_screen()
+            print(f"Requested command: {result[0]}")
+            print(f"Result of command: {result[2]}")
+            if result[2] == "failure":
+                print(f"Reason of failure: {result[3]}")
+            if result[2] == "reject":
+                if result[0] == "dnl":
+                    print(f"Download rejected: {result[3]}")
+                else:
+                    print(f"Upload rejected: {result[3]}")
+            if result[2] == "success":
+                print(f"Result:")
+                for r in range(2, len(result)):
+                    print(f"{result[r]}")
+            if result[2] == "accept":
+                '''
+                if result[0] == "dnl":
+                    answer = self.make_sure_window("start download")
+                    if answer:
+                        print("Downloading is about to start...")
+                    else:
+                        print("Download is interrupted")
+
+                else:
+                    answer = self.make_sure_window("start upload")
+                    if answer:
+                        print("Uploading is about to start...")
+                    else:
+                        print("Upload is interrupted")
+                return answer
+                '''
+                pass
+
+
+if __name__ == "__main__":
+    print("Starting...")
+    SiFTClient("localhost", 5150, "public.pem").operation()
