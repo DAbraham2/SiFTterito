@@ -42,35 +42,48 @@ class SiFTClient:
     def increase_sqn(self):
         self.sqn = (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
 
+    def client_login(self):
+        self.logger.debug('login')
+        username, password = self.ui.login_window(self.logged_in)
+        self.increase_sqn()
+        self.logger.info("Starting Login Protocol")
+        login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
+                                                                                       [username, password],
+                                                                                       self.sqn).login_request()
+        self.logger.debug(f"Login request: \nUsername: {username}\n"
+                          f"Password: {password}\n"
+                          f"SQN: {self.sqn}\n"
+                          f"Login request message: {login_req_message}\n"
+                          f"Message hash: {message_hash}\n"
+                          f"My random: {client_random}\n"
+                          f"Temp key: {temp_key}")
+        return login_req_message, message_hash, client_random, temp_key, username, password
+
+    def response_decrypt(self, res, key, message_hash):
+        self.logger.info("login response")
+        self.logger.debug(f"Login response: {login_res}")
+        dec_payload, self.sqn = LoginResponseMessage(res, self.sqn, key,
+                                                     message_hash).parse_message()
+        return dec_payload
+
     def operation(self):
         self.logger.debug('operation')
         self.sock = self.connect()
         try:
-            # sock.connect((self.host, self.port))
-
             # LOGIN
-            username, password = self.ui.login_window(self.logged_in)
-            self.increase_sqn()
-            self.logger.info("Starting Login Protocol")
-            login_req_message, message_hash, client_random, temp_key = LoginRequestMessage(self.pubkey_path,
-                                                                                           [username, password],
-                                                                                           self.sqn).login_request()
-            self.logger.debug(f"Login request: \nUsername: {username}\n"
-                              f"Password: {password}\n"
-                              f"SQN: {self.sqn}\n"
-                              f"Login request message: {login_req_message}\n"
-                              f"Message hash: {message_hash}\n"
-                              f"My random: {client_random}\n"
-                              f"Temp key: {temp_key}")
+            login_req_message, message_hash, client_random, temp_key, username, password = self.client_login()
             try:
                 self.sock.sendall(login_req_message)
                 self.logger.info("Message sent")
             except Exception as e:
+                print(e)
                 self.logger.error(f"MS: {e}")
+
             login_res = self.sock.recv(1024)
             self.logger.debug(f"Login response: {login_res}")
-            dec_payload, self.sqn = LoginResponseMessage(login_res, self.sqn, temp_key,
-                                                         message_hash).parse_message()
+
+            dec_payload = self.response_decrypt(login_res, temp_key, message_hash)
+
             if not dec_payload:
                 self.sock.close()
                 self.logger.info("Connection closed")
@@ -101,6 +114,7 @@ class SiFTClient:
                 self.UI.result_window(result)
 
         except Exception as e:
+            print(e)
             self.logger.error(f"An error was occured during the process: {e}")
 
     def generate_final_key(self, client_random, server_random, request_hash):

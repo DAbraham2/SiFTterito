@@ -31,5 +31,5 @@ def dummy_server(host, port):
 
 
 if __name__ == '__main__':
-    dummy_server("localhost", 5150)
-    # dummy_server_send_back("localhost", 5150)
+    # dummy_server("localhost", 5150)
+    dummy_server_send_back("localhost", 5150)
