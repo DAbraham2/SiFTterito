@@ -4,6 +4,9 @@ from lib.constants import MTPConstants
 from lib.cryptoStuff import (decryptLoginRequestETK, decryptMessage,
                              encryptMessage)
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MTPMessage(object):
     """ 
@@ -128,6 +131,7 @@ class LoginRequest(MTPv1Message):
         tk = decryptLoginRequestETK(etk)
         content = decryptMessage(body, data[:16], tk)
         content_str = content.decode('utf-8')
+        logger.info('LoginRequest.createFromContent content: ' + content_str)
         content_arr = content_str.splitlines()
 
         if len(content_arr) != 4:
