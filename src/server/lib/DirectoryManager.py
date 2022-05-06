@@ -112,6 +112,24 @@ class DirManager:
         except BaseException as err:
             return reject(err)
         
+    def init_upl(self, path: str, hash: str, size: int) -> str:
+        try:
+            c = cleanPath(path)
+            if self.preventEscape(c):
+                raise ValueError('You\'re caged AF.')
+
+            p = Path(normpath(self.current_working_dir/c))
+            if p.exists():
+                raise ValueError('File already exists')
+
+            self.file_to_upload = p
+            self.upload_size = size
+            self.upload_hash = hash
+
+            return accept()
+        except BaseException as err:
+            return reject(err)
+
 
     def is_home(self) -> bool:
         return self.current_working_dir == self.home_directory
