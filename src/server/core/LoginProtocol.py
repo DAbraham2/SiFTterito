@@ -7,6 +7,9 @@ from Crypto.Hash import SHA256
 from Crypto.Random import get_random_bytes
 from lib.cryptoStuff import loginFunction
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 def recv_nonblock(soc : socket) -> bytes:
     data = None
@@ -16,7 +19,8 @@ def recv_nonblock(soc : socket) -> bytes:
             if not data is None:
                 break
         except OSError as e:
-            if not e.errno is errno.EWOULDBLOCK:
+            if e.errno != errno.EWOULDBLOCK:
+                logger.error('OSError errno: {}'.format(e.errno))
                 raise e
     return data
 
@@ -35,6 +39,7 @@ def handle_Login(transport : asyncio.Transport, window : int = 2) -> tuple[bytes
     window : int
         The tolerable time window that the message originated from. Default is 2 seconds
     """
+    logger.info('Login protocol started')
     data = recv_nonblock(transport.get_extra_info('socket')) # this pops an OSError blocking
     recieved_time = time.time_ns()
     header = data[:16]
@@ -49,10 +54,10 @@ def handle_Login(transport : asyncio.Transport, window : int = 2) -> tuple[bytes
     delta = recieved_time - msg.timestamp
 
     if delta not in range(lower_range, upper_range):
-        raise ValueError()
+        raise ValueError('Timestamp not in range')
     
     if not loginFunction(msg.username, msg.password):
-        raise ValueError()
+        raise ValueError('Username or password failure')
 
     payload = '{}\n{}\n{}\n{}'.format(msg.timestamp, msg.username, msg.password, msg.client_random.hex())
     h = SHA256.new()
@@ -64,4 +69,5 @@ def handle_Login(transport : asyncio.Transport, window : int = 2) -> tuple[bytes
     response = LoginResponse(response_payload, bytes.fromhex('0001'), tk=msg.temporary_key)
 
     transport.write(response.getMessageAsBytes())
+    logger.info('Login protocol successful')
     return (msg.client_secret + server_random, msg.username)

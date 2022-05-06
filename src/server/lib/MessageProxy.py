@@ -1,11 +1,14 @@
 from asyncio import Transport
 
-from SiFTterito.src.server.lib.constants import MTPConstants
+from lib.constants import MTPConstants
 
 from lib.DirectoryManager import DirManager
 from lib.MessageCommandProcessor import MTPv1CommandFactory
 from lib.SiFTMTP import MessageFactory, MTPMessage, MTPv1Message
 
+import logging
+
+logger = logging.getLogger(__name__)
 
 SEGMENT_SIZE = 1024
 
@@ -16,6 +19,8 @@ class SiFTProxy:
         self.transport = transport
         self.directoryManager = DirManager(username)
         self.transfer_key = final_transfer_key
+        self.logger = logging.getLogger(__name__)
+        self.logger.debug('Proxy __init__(final_transfer_key: {}, username: {})'.format(final_transfer_key.hex(), username))
 
     def receive_msg(self, message: bytes) -> MTPMessage:
         header = message[:16]
@@ -23,6 +28,7 @@ class SiFTProxy:
 
         sqn = header[6:8]
         if sqn != self.client_sqn + 1:
+            self.logger.error('Incorrect sequence number: required: {}, arrived: {}'.format( self.client_sqn+1, sqn))
             raise ValueError(
                 'Received client sequence is not incremental in a correct way')
 
@@ -34,11 +40,13 @@ class SiFTProxy:
 
     def executeMessage(self, message : MTPv1Message):
         if message.typ is MTPConstants.DownloadRequestType:
+            self.logger.info('Started download protocol')
             self.DnlProtocol(message.content.decode('utf-8'))
         else:
             cmd = MTPv1CommandFactory.getCommandFromMessage(message)
             header, payload = cmd.do(dm=self.directoryManager)
-            self.send_msg(header, bytes(payload, 'utf-8'))
+            if not payload is '':
+                self.send_msg(header, bytes(payload, 'utf-8'))
         
         
 
@@ -48,8 +56,9 @@ class SiFTProxy:
             self.server_sqn = self.server_sqn + 1
             message = MessageFactory.create(header, payload, transfer_key=self.transfer_key)
             self.transport.write(message.getMessageAsBytes)
-        except:
-            raise ValueError()
+        except BaseException as err:
+            self.logger.error('Error in send_msg ' + err)
+            raise ValueError(err)
 
 
     def DnlProtocol(self, content: str) -> None:
@@ -61,10 +70,13 @@ class SiFTProxy:
                         break
                     header = getRes0Header() if len(data) == SEGMENT_SIZE else getRes1Header()
                     self.send_msg(header, data)
+            self.logger.info('Download protocol executed')
         else:
+            self.logger.info('Download protocol cancelled')
             self.directoryManager.file_to_download = None
 
     def close(self):
+        self.logger.info('Transport is closed')
         self.transport.close()
 
 
