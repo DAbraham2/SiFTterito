@@ -1,7 +1,8 @@
 import os
 import re
-from os.path import normcase, normpath, splitdrive, commonprefix
+from os.path import normcase, normpath, splitdrive, commonprefix, getsize
 from pathlib import Path
+from SiFTterito.src.server.lib.cryptoStuff import getFileHash
 
 from lib.constants import get_base_folder
 
@@ -101,9 +102,13 @@ class DirManager:
                 raise ValueError('You\'re caged AF.')
             
             p = Path(normpath(self.current_working_dir/c))
+            if not p.is_file():
+                raise ValueError('Requested path is not a file.')
 
-
-            return accept()
+            siz = getsize(p)
+            hash = getFileHash(p)
+            self.file_to_download = p
+            return accept('{}\n{}'.format(siz, hash))
         except BaseException as err:
             return reject(err)
         

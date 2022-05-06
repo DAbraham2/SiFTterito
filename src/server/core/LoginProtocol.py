@@ -1,12 +1,26 @@
+import asyncio
+import errno
 from socket import socket
-from time import time
+import time
 from lib.SiFTMTP import LoginRequest, LoginResponse, MessageFactory
 from Crypto.Hash import SHA256
 from Crypto.Random import get_random_bytes
 from lib.cryptoStuff import loginFunction
 
 
-def handle_Login(socket : socket, window : int = 2) -> tuple[bytes, str]:
+def recv_nonblock(soc : socket) -> bytes:
+    data = None
+    while True:
+        try:
+            data = soc.recv(1024)
+            if not data is None:
+                break
+        except OSError as e:
+            if not e.errno is errno.EWOULDBLOCK:
+                raise e
+    return data
+
+def handle_Login(transport : asyncio.Transport, window : int = 2) -> tuple[bytes, str]:
     """
     This method implements the login protocol according to the specification
 
@@ -15,13 +29,13 @@ def handle_Login(socket : socket, window : int = 2) -> tuple[bytes, str]:
     Arguments
     ---------
 
-    socket : socket
+    transport : Transport
         the socket which the client connected to.
 
     window : int
         The tolerable time window that the message originated from. Default is 2 seconds
     """
-    data = socket.recv(1024)
+    data = recv_nonblock(transport.get_extra_info('socket')) # this pops an OSError blocking
     recieved_time = time.time_ns()
     header = data[:16]
     body = data[16:]
@@ -49,5 +63,5 @@ def handle_Login(socket : socket, window : int = 2) -> tuple[bytes, str]:
     response_payload = '{}\n{}'.format(content, server_random.hex())
     response = LoginResponse(response_payload, bytes.fromhex('0001'), tk=msg.temporary_key)
 
-    socket.sendall(response.getMessageAsBytes)
+    transport.write(response.getMessageAsBytes())
     return (msg.client_secret + server_random, msg.username)

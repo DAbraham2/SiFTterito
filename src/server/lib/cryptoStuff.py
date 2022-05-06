@@ -67,4 +67,10 @@ def loginFunction(username: str, password: str) -> bool:
     return pwHash == origi_password
 
 def getHash(content : bytes) -> str:
-    return SHA256.new(content)
+    return SHA256.new(content).hexdigest()
+
+
+def getFileHash(path: str)-> str:
+    with open(path, 'rb') as f:
+        data = f.read()
+        return SHA256.new(data).hexdigest()

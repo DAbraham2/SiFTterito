@@ -9,9 +9,10 @@ class SiFTMainServer(asyncio.Protocol):
         print('Connection from {}'.format(peername))
         try:
             final_transfer_key, username = handle_Login(
-                transport.get_extra_info('socket'))
+                transport, window=120)
             self.proxy = SiFTProxy(transport, final_transfer_key, username)
-        except:
+        except BaseException as e:
+            print(e)
             transport.close()
 
     def data_received(self, data: bytes) -> None:

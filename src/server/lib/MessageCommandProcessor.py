@@ -64,6 +64,7 @@ class MTPv1CommandFactory:
                         raise ValueError('Unkown message type')
             case MTPConstants.DownloadRequestType:
                 print('Download')
+                raise ValueError('sould not be called here')
             case MTPConstants.UploadRequest0Type:
                 print('Upload0')
             case MTPConstants.UploadRequest1Type:
@@ -72,7 +73,6 @@ class MTPv1CommandFactory:
                 raise ValueError('Unkown message type')
 
         return cmd
-
 
 class PwdCommand(CommandBase):
     """
@@ -196,6 +196,6 @@ class DnlCommand(CommandBase):
             raise ValueError('')
 
         res = dm.init_dnl(self.path)
-        header = MTPv1Message(typ=MTPConstants.CommandResponseType)
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
         return (header, 'dnl\n{}\n{}'.format(self.req_hash, res))
 

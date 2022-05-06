@@ -1,6 +1,8 @@
 from Crypto.Random import get_random_bytes
+
 from lib.constants import MTPConstants
-from lib.cryptoStuff import decryptMessage, decryptLoginRequestETK, encryptMessage
+from lib.cryptoStuff import (decryptLoginRequestETK, decryptMessage,
+                             encryptMessage)
 
 
 class MTPMessage(object):
@@ -25,18 +27,18 @@ class MTPMessage(object):
         A 2-byte reserved field which is not used in this version of the protocol (reserved for future versions). Value should be set to 00 00.
     """
 
-    def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes, *, content: bytes) -> None:
-        if (len(ver) is not 2 or
-            len(typ) is not 2 or
-            len(len) is not 2 or
-            len(sqn) is not 2 or
-            len(rnd) is not 6 or
-            len(rsv) is not 2 or
+    def __init__(self, ver: bytes, typ: bytes, _len: bytes, sqn: bytes, rnd: bytes, rsv: bytes, *, content: bytes = bytes(0)) -> None:
+        if (not len(ver) is 2 or
+            not len(typ) is 2 or
+            not len(_len) is 2 or
+            not len(sqn) is 2 or
+            not len(rnd) is 6 or
+            not len(rsv) is 2 or
                 rsv != bytes(2)):
             raise ValueError('Incompatible values set')
         self.ver = ver
         self.typ = typ
-        self.len = len
+        self.len = _len
         self.sqn = sqn
         self.rnd = rnd
         self.rsv = rsv
@@ -104,7 +106,7 @@ class LoginRequest(MTPv1Message):
         self.temporary_key = tk
 
     @classmethod
-    def createFromContent(cls, data: bytes):
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
         """Creates a LoginRequest object from a recieved message
 
         :param data: The recieved message
@@ -129,7 +131,7 @@ class LoginRequest(MTPv1Message):
         content_arr = content_str.splitlines()
 
         if len(content_arr) != 4:
-            raise ValueError('')
+            raise ValueError('Payload is not right\n{}'.format(content_str))
 
         timestamp = int(content_arr[0])
         username = content_arr[1]
@@ -172,24 +174,54 @@ class CommandResponse(MTPv1Message):
 
     @classmethod
     def createFromContent(cls, data: bytes, *, transfer_key: bytes):
-        c = cls(typ=MTPConstants.CommandResponseType)
-        c.setContent(data, tk=transfer_key)
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.CommandResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
+class DownloadRequest(MTPv1Message):
+    pass
+
+
+class DownloadResponse0(MTPv1Message):
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.Download0ResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
+class DownloadResponse1(MTPv1Message):
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.Download1ResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
         return c
 
 
 class MessageFactory:
-    def create(header: bytes, body: bytes, *, transfer_key: bytes) -> MTPv1Message:
+    def create(header: bytes, body: bytes, *, transfer_key: bytes = None) -> MTPv1Message:
         typ = header[2:4]
+        data = header+body
         match typ:
             case MTPConstants.LoginRequestType:
-                return LoginRequest.createFromContent(header+body)
+                return LoginRequest.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.CommandRequestType:
-                pass
+                return CommandRequest.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.CommandResponseType:
-                return CommandResponse.createFromContent(header+body, transfer_key=transfer_key)
+                return CommandResponse.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.UploadRequest0Type:
                 pass
             case MTPConstants.UploadRequest1Type:
                 pass
             case MTPConstants.DownloadRequestType:
-                pass
+                return DownloadRequest.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.Download0ResponseType:
+                return DownloadResponse0.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.Download1ResponseType:
+                return DownloadResponse1.createFromContent(data, transfer_key=transfer_key)
+            case _:
+                raise ValueError('typ undefined')
