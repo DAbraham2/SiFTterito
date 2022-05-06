@@ -1,8 +1,6 @@
 
 from asyncio import Transport
 
-from requests import head
-
 from lib.constants import MTPConstants
 from lib.cryptoStuff import getHash
 from lib.DirectoryManager import DirManager
@@ -60,10 +58,13 @@ class MTPv1CommandFactory:
                         cmd = MkdCommand(message.content)
                     case 'del':
                         cmd = DelCommand(message.content)
+                    case 'dnl':
+                        cmd = DnlCommand(message.content)
                     case _:
                         raise ValueError('Unkown message type')
             case MTPConstants.DownloadRequestType:
                 print('Download')
+                raise ValueError('sould not be called here')
             case MTPConstants.UploadRequest0Type:
                 print('Upload0')
             case MTPConstants.UploadRequest1Type:
@@ -72,7 +73,6 @@ class MTPv1CommandFactory:
                 raise ValueError('Unkown message type')
 
         return cmd
-
 
 class PwdCommand(CommandBase):
     """
@@ -186,4 +186,16 @@ class DnlCommand(CommandBase):
     Downloads a file from the current working directory of the server to the client. The name of the file to be downloaded is provided as an argument to the dnl command.
     """
 
-    pass
+    def __init__(self, payload: bytes) -> None:
+        super().__init__(payload)
+        lines = payload.decode('utf-8').split('\n')
+        self.path = lines[1]
+
+    def do(self, *, dm: DirManager) -> tuple[bytes, str]:
+        if dm in None:
+            raise ValueError('')
+
+        res = dm.init_dnl(self.path)
+        header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+        return (header, 'dnl\n{}\n{}'.format(self.req_hash, res))
+
