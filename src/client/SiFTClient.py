@@ -120,11 +120,12 @@ class SiFTClient:
                 except Exception as e:
                     self.logger.error(f"Problem with sending the message: {e}")
 
-                received = self.sock.recv(1024)
-                self.logger.debug(f"Command response: {received}")
+                received_msg = self.sock.recv(1024)
+                self.logger.debug(f"Command response: {received_msg}")
 
-                decrypted_message = CommandResponseMessage(command_req_message, self.sqn, self.final_key, message_hash).command_response()
-                result = decrypted_message.split('\n')
+                decrypted_message, self.sqn = CommandResponseMessage(received_msg, self.sqn, self.final_key, message_hash).command_response()
+                result = decrypted_message#.split('\n')
+                print(result)
                 self.ui.result_window(result)
                 if result[2] == "accept":
                     if command[0] == "upl":
@@ -142,9 +143,10 @@ class SiFTClient:
         self.logger.debug("generate_final_key")
         # bytenak kell lenniuk
         salt = request_hash
-        print(type(client_random))
-        print(type(server_random))
-        self.final_key = HKDF(client_random.encode('utf-8') + server_random.encode('utf-8'), 32, salt, SHA256, 1)
+        print(request_hash.hex())
+        print(client_random+server_random)
+        self.final_key = HKDF(bytes.fromhex(client_random)+bytes.fromhex(server_random), 32, salt, SHA256, 1)
+        self.logger.debug(f"FINAL KEY: {self.final_key}")
 
     def command_format(self, command):
         self.logger.debug("command_format")
@@ -285,6 +287,7 @@ class SiFTClient:
                 return answer
                 '''
                 pass
+            getch()
 
 
 if __name__ == "__main__":

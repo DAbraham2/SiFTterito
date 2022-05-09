@@ -79,6 +79,7 @@ class MTPResponseMessage:
     def mtp_response(self):
         self.logger.info("mtp response")
         header = self.message[0:16]  # header is 16 bytes long
+        self.logger.debug(f"HEADER: {header}")
         mac = self.message[-12:]  # last 12 bytes is the authtag
         encrypted_payload = self.message[16:-12]  # encrypted payload is between header and mac
         header_version = header[0:2]  # version is encoded on 2 bytes
@@ -234,7 +235,8 @@ class MTPRequestMessage:
             self.logger.info("Payload encrypted and Mac calculated")
         except Exception as e:
             print(e)
-        self.logger.debug(f"Encrypted: {encrypted_payload}\nMAC: {mac}")
+        self.logger.debug(f"Encrypted: {encrypted_payload}\nMAC: {mac}"
+                          f"nonce {nonce}\n")
         return encrypted_payload, mac
 
     def encrypt_first_message(self):
@@ -289,7 +291,7 @@ class LoginRequestMessage:
         self.logger.info("sha256 generation")
         print("Creating the SHA256 hash of the message...")
         h = SHA256.new()
-        h.update(str.encode(self.mtp_message))
+        h.update(self.mtp_message.encode('utf-8'))
         hashed = h.digest()
         self.logger.debug(f"Message hash: {h.hexdigest()}")
         return hashed
@@ -356,6 +358,8 @@ class CommandRequestMessage:
         self.logger.info("command request init")
         self.message = message
         self.key = key
+        self.logger.debug(key)
+        self.logger.debug(len(key))
         self.typ = b'\x01\x00'
         self.sqn = sqn
 
@@ -396,7 +400,7 @@ class CommandResponseMessage:
         if self.payload is None:
             return None, None
         payload_array = self.payload.split('\n')
-        if bytes.fromhex(payload_array[0]) != self.original_hash:
+        if bytes.fromhex(payload_array[1]) != self.original_hash:
             self.logger.error(f"Hashes do not match:\n"
                               f"Got: {payload_array[0]}\n"
                               f"expected: {self.original_hash}")
