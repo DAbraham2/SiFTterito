@@ -63,9 +63,9 @@ class MTPMessage(object):
         header = data[:16]
         epd = data[16:]
         payload = decryptMessage(epd, header, transfer_key)
-        return cls(header[:2], header[2:4],
-                   header[4:6], header[6:8],
-                   header[8:14], header[14:16],
+        return cls(ver = header[:2], typ = header[2:4],
+                   _len = header[4:6], sqn = header[6:8],
+                   rnd = header[8:14], rsv = header[14:16],
                    content=payload)
 
 
