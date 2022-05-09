@@ -60,11 +60,28 @@ class SiFTClient:
         return login_req_message, message_hash, client_random, temp_key, username, password
 
     def response_decrypt(self, res, key, message_hash):
-        self.logger.info("login response")
-        self.logger.debug(f"Login response: {login_res}")
+        self.logger.info("Response decrypt")
+        self.logger.debug(f"Response: {res}")
         dec_payload, self.sqn = LoginResponseMessage(res, self.sqn, key,
                                                      message_hash).parse_message()
         return dec_payload
+
+    def command_message(self, command):
+        formatted_message = self.command_format(command)
+
+        command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
+                                                                  self.final_key).command_request()
+        self.logger.debug(f"Login request: \nUsername: {username}\n"
+                          f"SQN: {self.sqn}\n"
+                          f"Request message: {command_req_message}\n"
+                          f"Message hash: {message_hash}\n")
+        return command_req_message, message_hash
+
+    def upload_request(self):
+        pass
+
+    def download_request(self):
+        pass
 
     def operation(self):
         self.logger.debug('operation')
@@ -88,18 +105,11 @@ class SiFTClient:
                 self.sock.close()
                 self.logger.info("Connection closed")
             self.generate_final_key(client_random, dec_payload[1], message_hash)
+            # END OF LOGIN
 
             command = self.ui.command_window(username)
             while command[0] != "exit":
-                command = self.ui.command_window(username)
-                formatted_message = self.command_format(command)
-
-                command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
-                                                                          self.final_key).command_request()
-                self.logger.debug(f"Login request: \nUsername: {username}\n"
-                                  f"SQN: {self.sqn}\n"
-                                  f"Request message: {command_req_message}\n"
-                                  f"Message hash: {message_hash}\n")
+                command_req_message, message_hash = self.command_message(command)
                 try:
                     self.sock.sendall(command_req_message)
                     self.logger.info("Message sent!")
@@ -111,7 +121,14 @@ class SiFTClient:
 
                 decrypted_message = CommandResponseMessage().command_response()
                 result = decrypted_message.split('\n')
-                self.UI.result_window(result)
+                self.ui.result_window(result)
+                if result[2] == "accept":
+                    if command[0] == "upl":
+                        self.upload_request()
+                    else:
+                        self.download_request()
+
+                command = self.ui.command_window(username)
 
         except Exception as e:
             print(e)
@@ -210,7 +227,7 @@ class SiFTClient:
                                 return ["del", filename]
                             case 6:
                                 filename = input("File to upload: ")
-                                return ["upl", filename, ]  # size and hash are added in message format function
+                                return ["upl", filename]  # size and hash are added in message format function
                             case 7:
                                 filename = input("File to download: ")
                                 return ["dnl", filename]

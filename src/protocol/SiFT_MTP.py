@@ -5,6 +5,7 @@ from Crypto import Random
 from Crypto.PublicKey import RSA
 from Crypto.Hash import SHA256, HMAC
 from Crypto.Cipher import AES, PKCS1_OAEP
+import logging
 
 
 class MessageBase:
