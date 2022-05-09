@@ -14,6 +14,8 @@ class SiFTMainServer(asyncio.Protocol):
         try:
             final_transfer_key, username = handle_Login(
                 transport, window=120)
+
+            
             self.proxy = SiFTProxy(transport, final_transfer_key, username)
             logger.info('Connection successfully made')
         except BaseException as e:

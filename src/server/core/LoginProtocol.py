@@ -1,13 +1,13 @@
 import asyncio
 import errno
-from socket import socket
+import logging
 import time
-from lib.SiFTMTP import LoginRequest, LoginResponse, MessageFactory
+from socket import socket
+
 from Crypto.Hash import SHA256
 from Crypto.Random import get_random_bytes
-from lib.cryptoStuff import loginFunction
-
-import logging
+from lib.cryptoStuff import deriveTransferKey, loginFunction
+from lib.SiFTMTP import LoginRequest, LoginResponse, MessageFactory
 
 logger = logging.getLogger(__name__)
 
@@ -45,29 +45,30 @@ def handle_Login(transport : asyncio.Transport, window : int = 2) -> tuple[bytes
     header = data[:16]
     body = data[16:]
     msg = MessageFactory.create(header, body)
-    if isinstance(msg, LoginRequest):
-        raise ValueError()
+    if not isinstance(msg, LoginRequest):
+        raise ValueError('Not loginRequest')
 
     ns_window = window * 500000000 # 1e9 / 2
     upper_range = recieved_time + ns_window
     lower_range = recieved_time - ns_window
     delta = recieved_time - msg.timestamp
 
-    if delta not in range(lower_range, upper_range):
+    if not msg.timestamp in range(lower_range, upper_range):
         raise ValueError('Timestamp not in range')
     
     if not loginFunction(msg.username, msg.password):
         raise ValueError('Username or password failure')
 
-    payload = '{}\n{}\n{}\n{}'.format(msg.timestamp, msg.username, msg.password, msg.client_random.hex())
+    payload = '{}\n{}\n{}\n{}'.format(msg.timestamp, msg.username, msg.password, msg.client_secret.hex())
     h = SHA256.new()
-    h.update(payload)
+    h.update(payload.encode('utf-8'))
     content = h.hexdigest()
+    
     server_random = get_random_bytes(16)
 
     response_payload = '{}\n{}'.format(content, server_random.hex())
-    response = LoginResponse(response_payload, bytes.fromhex('0001'), tk=msg.temporary_key)
+    response = LoginResponse(response_payload.encode('utf-8'), bytes.fromhex('0001'), tk=msg.temporary_key)
 
     transport.write(response.getMessageAsBytes())
     logger.info('Login protocol successful')
-    return (msg.client_secret + server_random, msg.username)
+    return (deriveTransferKey((msg.client_secret + server_random), bytes.fromhex(content)), msg.username)

@@ -1,9 +1,9 @@
-from Crypto.Cipher import PKCS1_OAEP
-from Crypto.PublicKey import RSA
-from Crypto.Cipher import AES
-from Crypto.Protocol.KDF import scrypt
-from Crypto.Random import get_random_bytes
+from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Hash import SHA256
+from Crypto.Protocol.KDF import HKDF, scrypt
+from Crypto.PublicKey import RSA
+from Crypto.Random import get_random_bytes
+
 from lib.constants import get_base_folder
 
 basepath = get_base_folder() / 'crypto_key'
@@ -74,3 +74,8 @@ def getFileHash(path: str)-> str:
     with open(path, 'rb') as f:
         data = f.read()
         return SHA256.new(data).hexdigest()
+
+
+def deriveTransferKey(final_transfer_key :bytes, message_hash : bytes):
+    transferKey = HKDF(final_transfer_key, 32, message_hash, SHA256)
+    return transferKey

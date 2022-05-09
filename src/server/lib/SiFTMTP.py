@@ -52,7 +52,7 @@ class MTPMessage(object):
         return self.ver + self.typ + self.len + self.sqn + self.rnd + self.rsv
 
     def setContent(self, data: bytes, *, tk: bytes = bytes(16)) -> None:
-        self.len = 16 + len(data) + 12
+        self.len = (16 + len(data) + 12).to_bytes(2, 'big')
         self.content, self.mac = encryptMessage(data, self.getHeader(), tk)
 
     def getMessageAsBytes(self) -> bytes:
