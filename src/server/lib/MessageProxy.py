@@ -48,16 +48,16 @@ class SiFTProxy:
             cmd = MTPv1CommandFactory.getCommandFromMessage(message)
             header, payload = cmd.do(dm=self.directoryManager)
             if not payload is '':
-                self.send_msg(header, bytes(payload, 'utf-8'))
+                self.send_msg(header, payload.encode('utf-8'))
         
         
 
     def send_msg(self, header: bytes, payload: bytes):
         try:
-            header[6:8] = self.server_sqn.to_bytes(2, 'big')
+            mHead = header[0:6] + self.server_sqn.to_bytes(2, 'big') + header[8:16]
             self.server_sqn = self.server_sqn + 1
-            message = MessageFactory.create(header, payload, transfer_key=self.transfer_key)
-            self.transport.write(message.getMessageAsBytes)
+            message = MessageFactory.create(mHead, payload, transfer_key=self.transfer_key)
+            self.transport.write(message.getMessageAsBytes())
         except BaseException as err:
             self.logger.error('Error in send_msg ' + err)
             raise ValueError(err)

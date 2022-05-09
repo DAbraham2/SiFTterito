@@ -168,13 +168,13 @@ class CommandRequest(MTPv1Message):
                  rnd: bytes = get_random_bytes(6),
                  rsv: bytes = bytes(2),
                  content: bytes = bytes(0)) -> None:
-        super().__init__(ver=ver, typ=typ, len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
+        super().__init__(ver=ver, typ=typ, _len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
         self.content = content
 
 
 class CommandResponse(MTPv1Message):
     def __init__(self, *, ver: bytes = bytes.fromhex('0100'), typ: bytes = bytes.fromhex('ffff'), _len: bytes = bytes(2), sqn: bytes = bytes(2), rnd: bytes = get_random_bytes(6), rsv: bytes = bytes(2)) -> None:
-        super().__init__(ver=ver, typ=typ, len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
+        super().__init__(ver=ver, typ=typ, _len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
 
     @classmethod
     def createFromContent(cls, data: bytes, *, transfer_key: bytes):
