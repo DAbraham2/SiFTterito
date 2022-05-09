@@ -27,6 +27,7 @@ class SiFTProxy:
         body = message[16:]
 
         sqn = header[6:8]
+        sqn = int.from_bytes(sqn, 'big')
         if sqn != self.client_sqn + 1:
             self.logger.error('Incorrect sequence number: required: {}, arrived: {}'.format( self.client_sqn+1, sqn))
             raise ValueError(
