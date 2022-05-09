@@ -48,7 +48,7 @@ class DirManager:
             cwd = self.current_working_dir.as_posix()
             hd = self.home_directory.as_posix()
             p = cwd.removeprefix(hd)
-            if p is '':
+            if p == '':
                 p = '~/'
             return success(p)
         except BaseException as err:
@@ -100,7 +100,7 @@ class DirManager:
                 self.logger.error('Escape attempt cought')
                 raise ValueError('You\'re caged AF.')
 
-            if self.is_home() and clean is '':
+            if self.is_home() and clean == '':
                 raise ValueError('Cannot delete home directory')
 
             p = self.current_working_dir / clean
@@ -176,7 +176,7 @@ class DirManager:
 def success(text: str = '') -> str:
     s = 'success'
     t = text.strip()
-    if t is '':
+    if t == '':
         return s
     else:
         s = s + '\n{}'.format(text)
