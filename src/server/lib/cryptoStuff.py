@@ -1,4 +1,5 @@
-from tkinter import E
+import logging
+
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF, scrypt
@@ -6,14 +7,15 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 
 from lib.constants import get_base_folder
-import logging
+
 basepath = get_base_folder() / 'crypto_key'
 
 logger = logging.getLogger(__name__)
 
+
 def decryptLoginRequestETK(etk: bytes) -> bytes:
     path = basepath / 'private_key.pem'
-    key = RSA.importKey(open(path,'rt').read())
+    key = RSA.importKey(open(path, 'rt').read())
     cipher = PKCS1_OAEP.new(key)
     tk = cipher.decrypt(etk)
     return tk
@@ -40,8 +42,8 @@ def decryptMessage(epdmac: bytes, header: bytes, tk: bytes) -> bytes:
         cipher.update(header)
         payload = cipher.decrypt_and_verify(epd, mac)
     except Exception as e:
-        logger.warning( f'mac:{mac}\n'
-                        f'nonce: {nonce}')
+        logger.warning(f'mac:{mac}\n'
+                       f'nonce: {nonce}')
         logger.error(e)
         raise e
 
@@ -78,16 +80,17 @@ def loginFunction(username: str, password: str) -> bool:
 
     return pwHash == origi_password
 
-def getHash(content : bytes) -> str:
+
+def getHash(content: bytes) -> str:
     return SHA256.new(content).hexdigest()
 
 
-def getFileHash(path: str)-> str:
+def getFileHash(path: str) -> str:
     with open(path, 'rb') as f:
         data = f.read()
         return SHA256.new(data).hexdigest()
 
 
-def deriveTransferKey(final_transfer_key :bytes, message_hash : bytes):
+def deriveTransferKey(final_transfer_key: bytes, message_hash: bytes):
     transferKey = HKDF(final_transfer_key, 32, message_hash, SHA256)
     return transferKey

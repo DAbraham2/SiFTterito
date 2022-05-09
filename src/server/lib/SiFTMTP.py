@@ -1,12 +1,13 @@
+import logging
+
 from Crypto.Random import get_random_bytes
 
 from lib.constants import MTPConstants
 from lib.cryptoStuff import (decryptLoginRequestETK, decryptMessage,
                              encryptMessage)
 
-import logging
-
 logger = logging.getLogger(__name__)
+
 
 class MTPMessage(object):
     """ 
@@ -63,9 +64,9 @@ class MTPMessage(object):
         header = data[:16]
         epd = data[16:]
         payload = decryptMessage(epd, header, transfer_key)
-        return cls(ver = header[:2], typ = header[2:4],
-                   _len = header[4:6], sqn = header[6:8],
-                   rnd = header[8:14], rsv = header[14:16],
+        return cls(ver=header[:2], typ=header[2:4],
+                   _len=header[4:6], sqn=header[6:8],
+                   rnd=header[8:14], rsv=header[14:16],
                    content=payload)
 
 
@@ -208,7 +209,8 @@ class DownloadResponse1(MTPv1Message):
 
 class MessageFactory:
     def create(header: bytes, body: bytes, *, transfer_key: bytes = None) -> MTPv1Message:
-        logger.debug(f'MessageFactory.create(header:{header}, body: {body}, *, transfer_key = {transfer_key})')
+        logger.debug(
+            f'MessageFactory.create(header:{header}, body: {body}, *, transfer_key = {transfer_key})')
         typ = header[2:4]
         data = header+body
         match typ:
@@ -223,11 +225,11 @@ class MessageFactory:
                 return CommandResponse.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.UploadRequest0Type:
                 logger.debug('UploadRequest0Type')
-                #TODO
+                # TODO
                 pass
             case MTPConstants.UploadRequest1Type:
                 logger.debug('UploadRequest1Type')
-                #TODO
+                # TODO
                 pass
             case MTPConstants.DownloadRequestType:
                 logger.debug('DownloadRequestType')

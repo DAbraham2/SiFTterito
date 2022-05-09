@@ -1,11 +1,12 @@
 import asyncio
+import logging
+
 from lib.MessageProxy import SiFTProxy
 
 from core.LoginProtocol import handle_Login
 
-import logging
-
 logger = logging.getLogger(__name__)
+
 
 class SiFTMainServer(asyncio.Protocol):
     def connection_made(self, transport: asyncio.Transport):
@@ -15,7 +16,6 @@ class SiFTMainServer(asyncio.Protocol):
             final_transfer_key, username = handle_Login(
                 transport, window=120)
 
-            
             self.proxy = SiFTProxy(transport, final_transfer_key, username)
             logger.info('Connection successfully made')
         except BaseException as e:

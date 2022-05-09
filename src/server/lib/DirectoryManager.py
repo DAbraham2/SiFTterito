@@ -38,9 +38,9 @@ class DirManager:
             self.current_working_dir = Path(normpath(dir))
             self.logger.debug('Cwd changed to {}'.format(
                 self.current_working_dir))
-            return success(None)
+            return success('')
         except BaseException as err:
-            self.logger.error('Error in chd\n'+err)
+            self.logger.error(f'Error in chd\n{err}')
             return failure(err)
 
     def pwd(self) -> str:
@@ -52,7 +52,7 @@ class DirManager:
                 p = '~/'
             return success(p)
         except BaseException as err:
-            self.logger.error('Error in pwd\n'+err)
+            self.logger.error(f'Error in pwd\n{err}')
             return failure(err)
 
     def lst(self) -> str:
@@ -66,7 +66,7 @@ class DirManager:
             self.logger.debug('lst result: \n{}'.format(list))
             return success(list)
         except BaseException as err:
-            self.logger.error('Error in lst\n'+err)
+            self.logger.error(f'Error in lst\n{err}')
             return failure(err)
 
     def mkd(self, directory: str) -> str:
@@ -89,7 +89,7 @@ class DirManager:
 
             return success('')
         except BaseException as err:
-            self.logger.error('Error in mkd\n'+err)
+            self.logger.error(f'Error in mkd\n{err}')
             return failure(err)
 
     def delete(self, path: str) -> str:
@@ -114,7 +114,7 @@ class DirManager:
 
             return success('')
         except BaseException as err:
-            self.logger.error('Error in delete\n'+err)
+            self.logger.error(f'Error in delete\n{err}')
             return failure(err)
 
     def init_dnl(self, path: str) -> str:
@@ -134,7 +134,7 @@ class DirManager:
             return accept('{}\n{}'.format(siz, hash))
         except BaseException as err:
             self.file_to_download = None
-            self.logger.error('Error in init_dnl\n'+err)
+            self.logger.error(f'Error in init_dnl\n{err}')
             return reject(err)
 
     def init_upl(self, path: str, hash: str, size: int) -> str:
@@ -158,7 +158,7 @@ class DirManager:
             self.file_to_upload = None
             self.upload_size = None
             self.upload_hash = None
-            self.logger.error('Error in init_upl\n'+err)
+            self.logger.error(f'Error in init_upl\n{err}')
             return reject(err)
 
     def is_home(self) -> bool:
@@ -167,8 +167,8 @@ class DirManager:
     def preventEscape(self, path: str) -> bool:
         p = normpath(self.current_working_dir / path)
         common = commonprefix([p, self.home_directory])
-        if not (len(common) is len(self.home_directory)):
-            return False
+        if not (len(common) is len(str(self.home_directory))):
+            return True
 
         return self.is_home() and (path.startswith(('/..', '\\..', '//..', '..')))
 

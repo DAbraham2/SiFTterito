@@ -1,4 +1,5 @@
 
+import logging
 import os
 from asyncio import Transport
 
@@ -7,9 +8,8 @@ from lib.cryptoStuff import getFileHash, getHash
 from lib.DirectoryManager import DirManager
 from lib.SiFTMTP import MTPv1Message
 
-import logging
-
 logger = logging.getLogger(__name__)
+
 
 class CommandBase:
     def __init__(self, payload: bytes) -> None:
@@ -77,7 +77,7 @@ class MTPv1CommandFactory:
                         cmd = UplCommand(message.content)
                         logger.debug(com)
                     case _:
-                        logger.error('Unkown message type: '+ com)
+                        logger.error('Unkown message type: ' + com)
                         raise ValueError('Unkown message type')
             case MTPConstants.DownloadRequestType:
                 logger.error('DownloadRequestType')
@@ -89,16 +89,17 @@ class MTPv1CommandFactory:
                 cmd = Upload1Command(message.content)
                 logger.debug('UploadRequest1Type')
             case _:
-                logger.error('Unkown message type: '+ message.typ.hex())
+                logger.error('Unkown message type: ' + message.typ.hex())
                 raise ValueError('Unkown message type')
         return cmd
+
 
 class Upload0Command(CommandBase):
     def __init__(self, payload: bytes) -> None:
         super().__init__(payload)
         self.data = payload
         self.logger = logging.getLogger(__name__)
-    
+
     def do(self, *, dm: DirManager) -> tuple[bytes, str]:
         if dm is None:
             self.logger.error('DirManager is null.')
@@ -114,6 +115,7 @@ class Upload0Command(CommandBase):
             f.close()
 
         return (b'', b'')
+
 
 class Upload1Command(CommandBase):
     def __init__(self, payload: bytes) -> None:
@@ -139,14 +141,13 @@ class Upload1Command(CommandBase):
         hash = getFileHash(dm.file_to_upload)
         if not hash is dm.upload_hash or not size is dm.upload_size:
             os.remove(dm.file_to_upload)
-        
+
         dm.file_to_upload = None
         dm.upload_hash = None
         dm.upload_size = None
         header = MTPv1Message(typ=MTPConstants.UploadResponseType).getHeader()
 
         return (header, '{}\n{}'.format(hash, size))
-
 
 
 class PwdCommand(CommandBase):
@@ -264,6 +265,7 @@ class DnlCommand(CommandBase):
         header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
         return (header, 'dnl\n{}\n{}'.format(self.req_hash, res))
 
+
 class UplCommand(CommandBase):
     """
     Upload file: 
@@ -281,7 +283,7 @@ class UplCommand(CommandBase):
     def do(self, *, dm: DirManager) -> tuple[bytes, str]:
         if dm is None:
             raise ValueError('DirMan cannot be null')
-        
+
         response = dm.init_upl(self.path, self.hash, self.size)
 
         header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
