@@ -208,24 +208,36 @@ class DownloadResponse1(MTPv1Message):
 
 class MessageFactory:
     def create(header: bytes, body: bytes, *, transfer_key: bytes = None) -> MTPv1Message:
+        logger.debug(f'MessageFactory.create(header:{header}, body: {body}, *, transfer_key = {transfer_key})')
         typ = header[2:4]
         data = header+body
         match typ:
             case MTPConstants.LoginRequestType:
+                logger.debug('LoginRequestType')
                 return LoginRequest.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.CommandRequestType:
+                logger.debug('CommandRequestType')
                 return CommandRequest.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.CommandResponseType:
+                logger.debug('CommandResponseType')
                 return CommandResponse.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.UploadRequest0Type:
+                logger.debug('UploadRequest0Type')
+                #TODO
                 pass
             case MTPConstants.UploadRequest1Type:
+                logger.debug('UploadRequest1Type')
+                #TODO
                 pass
             case MTPConstants.DownloadRequestType:
+                logger.debug('DownloadRequestType')
                 return DownloadRequest.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.Download0ResponseType:
+                logger.debug('Download0ResponseType')
                 return DownloadResponse0.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.Download1ResponseType:
+                logger.debug('Download1ResponseType')
                 return DownloadResponse1.createFromContent(data, transfer_key=transfer_key)
             case _:
+                logger.error(f'typ undefined: {typ}')
                 raise ValueError('typ undefined')

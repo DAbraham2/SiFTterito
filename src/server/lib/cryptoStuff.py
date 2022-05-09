@@ -1,3 +1,4 @@
+from tkinter import E
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF, scrypt
@@ -5,8 +6,10 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 
 from lib.constants import get_base_folder
-
+import logging
 basepath = get_base_folder() / 'crypto_key'
+
+logger = logging.getLogger(__name__)
 
 def decryptLoginRequestETK(etk: bytes) -> bytes:
     path = basepath / 'private_key.pem'
@@ -27,12 +30,21 @@ def decryptMessage(epdmac: bytes, header: bytes, tk: bytes) -> bytes:
 
 
     """
+    logger.debug('decrypt started')
     nonce = header[6: 8] + header[8:14]
     epd = epdmac[:-12]
     mac = epdmac[-12:]
-    cipher = AES.new(tk, AES.MODE_GCM, nonce=nonce, mac_len=len(mac))
-    cipher.update(header)
-    payload = cipher.decrypt_and_verify(epd, mac)
+    payload = None
+    try:
+        cipher = AES.new(tk, AES.MODE_GCM, nonce=nonce, mac_len=12)
+        cipher.update(header)
+        payload = cipher.decrypt_and_verify(epd, mac)
+    except Exception as e:
+        logger.warning( f'mac:{mac}\n'
+                        f'nonce: {nonce}')
+        logger.error(e)
+        raise e
+
     return payload
 
 

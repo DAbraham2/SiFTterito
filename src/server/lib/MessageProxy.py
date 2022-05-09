@@ -23,6 +23,7 @@ class SiFTProxy:
         self.logger.debug('Proxy __init__(final_transfer_key: {}, username: {})'.format(final_transfer_key.hex(), username))
 
     def receive_msg(self, message: bytes) -> MTPMessage:
+        self.logger.debug(f'msg reveiced: {message}')
         header = message[:16]
         body = message[16:]
 
