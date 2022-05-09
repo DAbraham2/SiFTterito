@@ -68,10 +68,10 @@ class SiFTClient:
 
     def command_message(self, command):
         formatted_message = self.command_format(command)
-
+        self.logger.debug(formatted_message)
         command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
                                                                   self.final_key).command_request()
-        self.logger.debug(f"Login request: \nUsername: {username}\n"
+        self.logger.debug(
                           f"SQN: {self.sqn}\n"
                           f"Request message: {command_req_message}\n"
                           f"Message hash: {message_hash}\n")
@@ -105,11 +105,15 @@ class SiFTClient:
                 self.sock.close()
                 self.logger.info("Connection closed")
             self.generate_final_key(client_random, dec_payload[1], message_hash)
+            self.logger.info("END OF LOGIN")
             # END OF LOGIN
 
             command = self.ui.command_window(username)
+            self.logger.debug(command)
             while command[0] != "exit":
                 command_req_message, message_hash = self.command_message(command)
+                self.logger.debug(command_req_message)
+                self.logger.debug(message_hash)
                 try:
                     self.sock.sendall(command_req_message)
                     self.logger.info("Message sent!")
@@ -119,7 +123,7 @@ class SiFTClient:
                 received = self.sock.recv(1024)
                 self.logger.debug(f"Command response: {received}")
 
-                decrypted_message = CommandResponseMessage().command_response()
+                decrypted_message = CommandResponseMessage(command_req_message, self.sqn, self.final_key, message_hash).command_response()
                 result = decrypted_message.split('\n')
                 self.ui.result_window(result)
                 if result[2] == "accept":
@@ -132,13 +136,15 @@ class SiFTClient:
 
         except Exception as e:
             print(e)
-            self.logger.error(f"An error was occured during the process: {e}")
+            self.logger.error(f"An error was occurred during the process: {e}")
 
     def generate_final_key(self, client_random, server_random, request_hash):
         self.logger.debug("generate_final_key")
         # bytenak kell lenniuk
         salt = request_hash
-        self.final_key = HKDF(client_random + server_random, 32, salt, SHA256, 1)
+        print(type(client_random))
+        print(type(server_random))
+        self.final_key = HKDF(client_random.encode('utf-8') + server_random.encode('utf-8'), 32, salt, SHA256, 1)
 
     def command_format(self, command):
         self.logger.debug("command_format")
@@ -283,4 +289,4 @@ class SiFTClient:
 
 if __name__ == "__main__":
     print("Starting...")
-    SiFTClient("localhost", 5150, "public.pem").operation()
+    SiFTClient("localhost", 5150, "pub.pem").operation()

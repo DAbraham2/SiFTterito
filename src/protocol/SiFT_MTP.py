@@ -41,8 +41,8 @@ class MTPResponseMessage:
         self.logger.info("check_version")
         if header_version != self.header_ver:
             self.logger.debug(f'Header version is not matching:\n'
-                  f'Expected: {self.header_ver}\n'
-                  f'Message header version: {header_version}')
+                              f'Expected: {self.header_ver}\n'
+                              f'Message header version: {header_version}')
             return False
         return True
 
@@ -59,11 +59,13 @@ class MTPResponseMessage:
     def check_sqn(self, res_sqn, sqn):
         self.logger.info("sqn check")
         print("Checking sequence number")
+        '''
         if res_sqn <= sqn:
             self.logger.debug(f"Sequence number was lower or equal:\n"
-                  f"Expected higher than: {sqn}\n"
-                  f"Got: {res_sqn}")
+                              f"Expected higher than: {sqn}\n"
+                              f"Got: {res_sqn}")
             return False
+        '''
         return True
 
     def check_type(self, res_type, expected_type):
@@ -102,11 +104,12 @@ class MTPResponseMessage:
             self.logger.info("Checking response mac")
             nonce = header_sqn + header_rnd
             AE = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=12)
-            AE.update(header + nonce + self.message)
+            AE.update(header)
             try:
                 self.logger.debug(mac)
                 self.logger.info("decrypt and mac verify")
                 decrypted_payload = AE.decrypt_and_verify(encrypted_payload, mac)
+                self.logger.debug(decrypted_payload)
             except Exception as e:
                 print(f"Error: {e}")
                 self.logger.error(f"Error: {e}")
@@ -135,9 +138,11 @@ class MTPRequestMessage:
         return self.ver + self.typ + self.len + self.sqn + self.fresh_random + self.rsv
 
     def create_request(self, key):
-        self.logger.info("create response")
+        self.logger.info("create request")
         print("Generating a request...")
+        self.header = self.create_header()
         enc_pyl, mac = self.encrypt_message(key)
+        self.logger.info("encrypted")
         full_message = self.header + enc_pyl + mac
         self.logger.debug(f"Full message {full_message}")
         return full_message
@@ -161,9 +166,10 @@ class MTPRequestMessage:
     def mtp_login_request(self, pubkey):
         self.logger.info("mtp login request")
         print(f"MTP Login request function")
+        self.header = self.create_header()
         tk, enc_pyl, mac = self.encrypt_first_message()
         self.logger.info("encrypted")
-        #self.len = self.login_message_length()
+        # self.len = self.login_message_length()
         # Encrypt the temp key with the public RSA key
         print(f"Encrypt TK using public key...")
         self.logger.info("Encrypting TK")
@@ -176,13 +182,14 @@ class MTPRequestMessage:
             print(e)
             self.logger.debug(e)
         full_message = self.header + enc_pyl + mac + enc_tk
-        self.logger.debug(f"\nmac langth: {len(mac)}\n"
-              f"header length: {len(self.header)}\n"
-              f"pyl length: {len(enc_pyl)}\n"
-              f"ectk len: {len(enc_tk)}\n")
+        self.logger.debug(f"\nmac length: {len(mac)}\n"
+                          f"header length: {len(self.header)}\n"
+                          f"pyl length: {len(enc_pyl)}\n"
+                          f"ectk len: {len(enc_tk)}\n")
         self.logger.debug(f"Full message sent back: {full_message}")
         return full_message, tk
 
+    '''
     def generate_mac(self, key, nonce, encrypted_payload):
         self.logger.info("mac generation")
         print(f"Generating the mac...")
@@ -193,10 +200,11 @@ class MTPRequestMessage:
         #mac = MAC.digest()
         cipehr = AES.new(key, AES.MODE_GCM, nonce=nonce, mac_len=12)
         cipehr.update(self.header)
-        cipehr.update(encrypted_payload)
+        #cipehr.update(encrypted_payload)
         mac = cipehr.digest()
         self.logger.debug(f"Mac generated: {mac}")
         return mac
+    '''
 
     def login_message_length(self):
         self.logger.info("login message length calc")
@@ -208,41 +216,50 @@ class MTPRequestMessage:
         mac_length = 12
         msg_length = header_length + payload_length + mac_length + 256  # encrypted temporary key
         self.logger.debug(f"Login message length: {msg_length}\n"
-              f"Login message length in bytes: {msg_length.to_bytes(2, 'big')}")
+                          f"Login message length in bytes: {msg_length.to_bytes(2, 'big')}")
         return msg_length.to_bytes(2, 'big')
 
     def encrypt_message(self, key):
         self.logger.info("message encryption")
         print("Encrypting the message...")
         nonce = self.sqn + self.fresh_random
-        ENC = AES.new(key, AES.MODE_GCM, nonce)
+        ENC = AES.new(key, AES.MODE_GCM, nonce=nonce, mac_len=12)
         encrypted_payload = None
+        mac = None
         try:
-            encrypted_payload = ENC.encrypt(self.message.encode('utf-8'))
-            self.logger.info("Payload encrypted")
+            self.logger.debug(self.message)
+            self.logger.debug(self.header)
+            ENC.update(self.header)
+            encrypted_payload, mac = ENC.encrypt_and_digest(self.message.encode('utf-8'))
+            self.logger.info("Payload encrypted and Mac calculated")
         except Exception as e:
             print(e)
-        self.logger.debug(f"Encrypted: {encrypted_payload}")
-        return encrypted_payload, self.generate_mac(key, nonce, encrypted_payload)
+        self.logger.debug(f"Encrypted: {encrypted_payload}\nMAC: {mac}")
+        return encrypted_payload, mac
 
     def encrypt_first_message(self):
         self.logger.info("login req encryption")
         print(f"Encrypting the login message...")
         tk = Random.get_random_bytes(32)
         nonce = self.sqn + self.fresh_random
-        ENC = AES.new(tk, AES.MODE_GCM, nonce)
+        ENC = AES.new(tk, AES.MODE_GCM, nonce=nonce, mac_len=12)
         encrypted_payload = None
+        mac = None
+        self.logger.debug(self.message)
+        self.logger.debug(self.header)
         try:
-            encrypted_payload = ENC.encrypt(self.message.encode('utf-8'))
-            self.logger.info("Payload encrypted")
+            ENC.update(self.header)
+            encrypted_payload, mac = ENC.encrypt_and_digest(self.message.encode('utf-8'))
+            self.logger.info("Payload encrypted and Mac calculated")
         except Exception as e:
             print(e)
             self.logger.error(e)
         self.logger.debug(f"Encryption: \n"
-              f"nonce {nonce}\n"
-              f"tk: {tk}\n"
-              f"encrypted payload: {encrypted_payload}")
-        return tk, encrypted_payload, self.generate_mac(tk, nonce, encrypted_payload)
+                          f"MAC: {mac}"
+                          f"nonce {nonce}\n"
+                          f"tk: {tk}\n"
+                          f"encrypted payload: {encrypted_payload}")
+        return tk, encrypted_payload, mac
 
 
 class LoginRequestMessage:
@@ -320,12 +337,17 @@ class LoginResponseMessage:
     def parse_message(self):
         self.logger.info("parsing response message")
         self.payload = MTPResponseMessage(self.message, self.sqn, self.type, self.key).mtp_response()
+        self.payload = self.payload.decode('utf-8')
+        self.logger.debug(self.payload)
         if self.payload is None:
             return None, None
-        paylod_array = self.payload.split('\n')
-        if paylod_array[0] != self.original_hash:
+        payload_array = self.payload.split('\n')
+        if bytes.fromhex(payload_array[0]) != self.original_hash:
+            self.logger.error(f"Hashes do not match:\n"
+                              f"Got: {payload_array[0]}\n"
+                              f"expected: {self.original_hash}")
             return None, None
-        return paylod_array, (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
+        return payload_array, (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
 
 
 class CommandRequestMessage:
@@ -356,7 +378,7 @@ class CommandRequestMessage:
 
 
 class CommandResponseMessage:
-    def __init__(self, login_req_message, original_sqn, key, original_hash):
+    def __init__(self, command_req_message, original_sqn, key, original_hash):
         self.logger = logging.getLogger(__name__)
         self.logger.info("command response init")
         self.original_hash = original_hash
@@ -364,13 +386,22 @@ class CommandResponseMessage:
         self.type = b'\x01\x10'
         self.sqn = original_sqn
         self.payload = None
-        self.message = login_req_message
+        self.message = command_req_message
 
     def command_response(self):
-        # returns the decrypted message
-        pass
-
-
+        self.logger.info("command response")
+        self.payload = MTPResponseMessage(self.message, self.sqn, self.type, self.key).mtp_response()
+        self.payload = self.payload.decode('utf-8')
+        self.logger.debug(self.payload)
+        if self.payload is None:
+            return None, None
+        payload_array = self.payload.split('\n')
+        if bytes.fromhex(payload_array[0]) != self.original_hash:
+            self.logger.error(f"Hashes do not match:\n"
+                              f"Got: {payload_array[0]}\n"
+                              f"expected: {self.original_hash}")
+            return None, None
+        return payload_array, (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
 
 
 class UploadRequestMessage(MessageBase):
