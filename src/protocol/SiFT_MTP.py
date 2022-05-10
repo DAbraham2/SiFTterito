@@ -118,6 +118,52 @@ class MTPResponseMessage:
 
         return decrypted_payload
 
+    def decrypt_download(self):
+        self.logger.info("mtp download response")
+        header = self.message[0:16]  # header is 16 bytes long
+        self.logger.debug(f"HEADER: {header}")
+        mac = self.message[-12:]  # last 12 bytes is the authtag
+        encrypted_payload = self.message[16:-12]  # encrypted payload is between header and mac
+        header_version = header[0:2]  # version is encoded on 2 bytes
+        header_type = header[2:4]  # type is encoded on 2 byte
+        header_length = header[4:6]  # msg length is encoded on 2 bytes
+        header_sqn = header[6:8]  # msg sqn is encoded on 4 bytes
+        header_rnd = header[8:14]  # random is encoded on 7 bytes
+        header_rsv = header[14:16]  # random is encoded on 7 bytes
+
+        # check version, length, seq number and message type
+        res_sqn = int.from_bytes(header_sqn, byteorder='big')
+        sqn = int.from_bytes(self.sqn, byteorder='big')
+
+        res_type = int.from_bytes(header_type, byteorder='big')
+        expected_type0 = b'\x03\x10'
+        expected_type1 = b'\x03\x11'
+
+        decrypted_payload = None
+        if self.check_version(header_version) and \
+                self.check_sqn(res_sqn, sqn) and \
+                self.check_type(res_type, expected_type0) or self.check_type(res_type, expected_type1) and \
+                self.check_length(header_length):
+            # check mac
+            self.logger.info("Checking response mac")
+            nonce = header_sqn + header_rnd
+            AE = AES.new(self.key, AES.MODE_GCM, nonce=nonce, mac_len=12)
+            AE.update(header)
+            try:
+                self.logger.debug(mac)
+                self.logger.info("decrypt and mac verify")
+                decrypted_payload = AE.decrypt_and_verify(encrypted_payload, mac)
+                self.logger.debug(decrypted_payload)
+            except Exception as e:
+                print(f"Error: {e}")
+                self.logger.error(f"Error: {e}")
+                return None, None
+        if self.check_type(res_type, expected_type0):
+            return decrypted_payload, False
+        else:
+            return decrypted_payload, True
+
+
 
 class MTPRequestMessage:
     def __init__(self, message, typ, sqn):
@@ -492,7 +538,7 @@ class UploadResponseMessage:
 
 
 class DnloadRequestMessage:
-    def __init__(self, download_req_message, original_sqn, key, original_hash):
+    def __init__(self, download_req_message, original_sqn, key):
         self.logger = logging.getLogger(__name__)
         self.logger.info("download request init")
         self.original_hash = original_hash
@@ -502,19 +548,28 @@ class DnloadRequestMessage:
         self.payload = None
         self.message = download_req_message
 
+    def download_request(self):
+        self.logger.info("download request to mtp")
+        return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
 
-class DnloadResponse0Message:
-    def __init__(self, download_res0_message, original_sqn, key, original_hash):
+
+class DnloadResponseMessage:
+    def __init__(self, download_res0_message, original_sqn, key):
         self.logger = logging.getLogger(__name__)
         self.logger.info("download response0 init")
         self.original_hash = original_hash
         self.key = key
-        self.type = b'\x03\x10'
+        self.type = b'\x03\x00'
         self.sqn = original_sqn
         self.payload = None
         self.message = download_res0_message
 
+    def dnl_response(self):
+        decrypt_download, last_fragment = MTPResponseMessage(self.message, self.sqn, self.type, self.key).decrypt_download()
+        self.logger.debug(decrypt_download, last_fragment)
+        return decrypt_download, last_fragment
 
+'''
 class DnloadResponse1Message:
     def __init__(self, download_res1_message, original_sqn, key, original_hash):
         self.logger = logging.getLogger(__name__)
@@ -525,3 +580,4 @@ class DnloadResponse1Message:
         self.sqn = original_sqn
         self.payload = None
         self.message = download_res1_message
+'''

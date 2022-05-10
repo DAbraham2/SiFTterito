@@ -7,6 +7,8 @@ import sys
 import logging
 from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF
+from os.path import exists
+
 
 file_dir = os.path.dirname(__file__)
 protocol_dir = os.path.join(file_dir, '..', 'protocol')
@@ -85,7 +87,7 @@ class SiFTClient:
         msg_hash = None
         while (l):
             print('File uploading...')
-            if size < 1024:
+            if size <= 1024:
                 l = f.read(1024)
                 file_fragment, msg_hash = UploadRequest1Message().send_file_last_fragment(l, self.sqn, self.final_key)
                 self.sock.sendall(file_fragment)
@@ -94,6 +96,7 @@ class SiFTClient:
                 file_fragment, msg_hash = UploadRequest0Message().send_file_last_fragment(l, self.sqn, self.final_key)
                 self.sock.sendall(file_fragment)
             self.increase_sqn()
+            size = size - 1024
         f.close()
         print("File Uploaded Successfully!")
         received_msg = self.sock.recv(1024)
@@ -104,13 +107,40 @@ class SiFTClient:
         print(result)
         getch()
 
-    def download_request(self, client_sure, command):
+    def download_request(self, client_sure, command, result):
         formatted_message = self.command_format(command)
         self.logger.debug(formatted_message)
-        if client_sure:
-            pass
+        if exists(command[1]):
+            print("File already exists")
+            self.logger.info(f"File already exists: {command[1]}")
+            getch()
         else:
-            pass
+            if client_sure:
+                downloaded_file = open(command[1], 'wb')
+                msg = DnloadRequestMessage("Ready", self.sqn, self.final_key).download_request()
+                self.sock.sendall(msg)
+                last_dnl_res = False
+                print("File downloading...")
+                while not last_dnl_res:
+                    received_file_fragment = self.sock.recv(1024)
+                    decrypted_fragment, last_dnl_res = DnloadResponseMessage(received_file_fragment, self.sqn, self.final_key).dnl_response()
+                    downloaded_file.write(decrypted_fragment)
+                h = SHA256.new()
+                h.update(str.encode(self.message))
+                hashed = h.digest()
+                self.logger.debug(f"File hash: {h.hexdigest()}")
+                if hashed != result[4]:
+                    self.logger.debug(f"File hashes do not match: {hashed} and {result[4]}")
+                    self.sock.close()
+                if len(downloaded_file) != int(result[3]):
+                    self.logger.debug(f"File sizes do not match: {len(downloaded_file)} to {int(result[3])}")
+                    self.sock.close()
+                downloaded_file.close()
+            else:
+                msg = DnloadRequestMessage("Cancel", self.sqn, self.final_key, ).download_request()
+                self.sock.sendall(msg)
+                print("Client declined the download process!")
+                getch()
 
     def operation(self):
         self.logger.debug('operation')
@@ -161,7 +191,7 @@ class SiFTClient:
                 if result[2] == "accept":
                     if command[0] == "dnl":
                         if self.ui.make_sure_window(f"start downloading {command[1]}"):
-                            self.download_request(True, command)
+                            self.download_request(True, command, result)
                         else:
                             self.download_request(False, command)
                     else:
