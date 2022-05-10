@@ -408,25 +408,120 @@ class CommandResponseMessage:
         return payload_array, (int.from_bytes(self.sqn, 'big') + 1).to_bytes(2, byteorder='big')
 
 
-class UploadRequestMessage(MessageBase):
-    pass
+class UploadRequest0Message:
+    def __init__(self, upload_req0_message, original_sqn, key):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("upload request0 init")
+        self.key = key
+        self.type = b'\x02\x00'
+        self.sqn = original_sqn
+        self.payload = None
+        self.message = upload_req0_message
+
+    def send_file_fragment(self):
+        self.logger.info("upload request0 function")
+        return self.handle_message_to_mtp(), self.create_request_sha256()
+
+    def handle_message_to_mtp(self):
+        self.logger.info("upload request0 to mtp")
+        return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
+
+    def create_request_sha256(self):
+        self.logger.info("command request sha256")
+        print("Creating the SHA256 hash of the message...")
+        h = SHA256.new()
+        h.update(str.encode(self.message))
+        hashed = h.digest()
+        self.logger.debug(f"Message hash: {h.hexdigest()}")
+        return hashed
 
 
-class UploadRequest1Message(MessageBase):
-    pass
+class UploadRequest1Message:
+    def __init__(self, upload_req1_message, original_sqn, key):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("upload request1 init")
+        self.key = key
+        self.type = b'\x02\x01'
+        self.sqn = original_sqn
+        self.payload = None
+        self.message = upload_req1_message
+
+    def send_file_last_fragment(self):
+        self.logger.info("upload request0 function")
+        return self.handle_message_to_mtp(), self.create_request_sha256()
+
+    def handle_message_to_mtp(self):
+        self.logger.info("upload request0 to mtp")
+        return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
+
+    def create_request_sha256(self):
+        self.logger.info("command request sha256")
+        print("Creating the SHA256 hash of the message...")
+        h = SHA256.new()
+        h.update(str.encode(self.message))
+        hashed = h.digest()
+        self.logger.debug(f"Message hash: {h.hexdigest()}")
+        return hashed
 
 
-class UploadResponseMessage(MessageBase):
-    pass
+class UploadResponseMessage:
+    def __init__(self, upload_res_message, original_sqn, key, original_hash):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("upload response init")
+        self.original_hash = original_hash
+        self.key = key
+        self.type = b'\x02\x10'
+        self.sqn = original_sqn
+        self.payload = None
+        self.message = upload_res_message
+
+    def upload_response(self):
+        self.logger.info("upload response")
+        self.payload = MTPResponseMessage(self.message, self.sqn, self.type, self.key).mtp_response()
+        self.payload = self.payload.decode('utf-8')
+        self.logger.debug(self.payload)
+        if self.payload is None:
+            return None, None
+        payload_array = self.payload.split('\n')
+        if bytes.fromhex(payload_array[1]) != self.original_hash:
+            self.logger.error(f"Hashes do not match:\n"
+                              f"Got: {payload_array[0]}\n"
+                              f"expected: {self.original_hash}")
+            return None, None
+        return payload_array
 
 
-class DnloadRequestMessage(MessageBase):
-    pass
+class DnloadRequestMessage:
+    def __init__(self, download_req_message, original_sqn, key, original_hash):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("download request init")
+        self.original_hash = original_hash
+        self.key = key
+        self.type = b'\x03\x00'
+        self.sqn = original_sqn
+        self.payload = None
+        self.message = download_req_message
 
 
-class DnloadResponse0Message(MessageBase):
-    pass
+class DnloadResponse0Message:
+    def __init__(self, download_res0_message, original_sqn, key, original_hash):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("download response0 init")
+        self.original_hash = original_hash
+        self.key = key
+        self.type = b'\x03\x10'
+        self.sqn = original_sqn
+        self.payload = None
+        self.message = download_res0_message
 
 
-class DnloadResponse1Message(MessageBase):
-    pass
+class DnloadResponse1Message:
+    def __init__(self, download_res1_message, original_sqn, key, original_hash):
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("download response1 init")
+        self.original_hash = original_hash
+        self.key = key
+        self.type = b'\x03\x11'
+        self.sqn = original_sqn
+        self.payload = None
+        self.message = download_res1_message

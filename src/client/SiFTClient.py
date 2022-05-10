@@ -11,7 +11,8 @@ from Crypto.Protocol.KDF import HKDF
 file_dir = os.path.dirname(__file__)
 protocol_dir = os.path.join(file_dir, '..', 'protocol')
 sys.path.append(protocol_dir)
-from SiFT_MTP import LoginRequestMessage, LoginResponseMessage, CommandRequestMessage, CommandResponseMessage
+from SiFT_MTP import LoginRequestMessage, LoginResponseMessage, CommandRequestMessage, CommandResponseMessage, \
+    UploadRequest0Message, UploadRequest1Message, UploadResponseMessage
 
 
 class SiFTClient:
@@ -72,16 +73,44 @@ class SiFTClient:
         command_req_message, message_hash = CommandRequestMessage(formatted_message, self.sqn,
                                                                   self.final_key).command_request()
         self.logger.debug(
-                          f"SQN: {self.sqn}\n"
-                          f"Request message: {command_req_message}\n"
-                          f"Message hash: {message_hash}\n")
+            f"SQN: {self.sqn}\n"
+            f"Request message: {command_req_message}\n"
+            f"Message hash: {message_hash}\n")
         return command_req_message, message_hash
 
-    def upload_request(self):
-        pass
+    def upload_request(self, command):
+        size = os.path.getsize(command[1])
+        upload_file = open(command[1], 'rb')
+        l = upload_file.read(1024)  # each time we only send 1024 bytes of data
+        msg_hash = None
+        while (l):
+            print('File uploading...')
+            if size < 1024:
+                l = f.read(1024)
+                file_fragment, msg_hash = UploadRequest1Message().send_file_last_fragment(l, self.sqn, self.final_key)
+                self.sock.sendall(file_fragment)
+            else:
+                l = f.read(1024)
+                file_fragment, msg_hash = UploadRequest0Message().send_file_last_fragment(l, self.sqn, self.final_key)
+                self.sock.sendall(file_fragment)
+            self.increase_sqn()
+        f.close()
+        print("File Uploaded Successfully!")
+        received_msg = self.sock.recv(1024)
+        self.logger.debug(f"Command response: {received_msg}")
+        decrypted_message = UploadResponseMessage(received_msg, self.sqn, self.final_key,
+                                                  msg_hash).command_response()
+        result = decrypted_message
+        print(result)
+        getch()
 
-    def download_request(self):
-        pass
+    def download_request(self, client_sure, command):
+        formatted_message = self.command_format(command)
+        self.logger.debug(formatted_message)
+        if client_sure:
+            pass
+        else:
+            pass
 
     def operation(self):
         self.logger.debug('operation')
@@ -112,6 +141,7 @@ class SiFTClient:
             self.logger.debug(command)
             while command[0] != "exit":
                 command_req_message, message_hash = self.command_message(command)
+                self.increase_sqn()
                 self.logger.debug(command_req_message)
                 self.logger.debug(message_hash)
                 try:
@@ -123,18 +153,20 @@ class SiFTClient:
                 received_msg = self.sock.recv(1024)
                 self.logger.debug(f"Command response: {received_msg}")
 
-                decrypted_message, self.sqn = CommandResponseMessage(received_msg, self.sqn, self.final_key, message_hash).command_response()
-                result = decrypted_message#.split('\n')
+                decrypted_message, sqn = CommandResponseMessage(received_msg, self.sqn, self.final_key,
+                                                                message_hash).command_response()
+                result = decrypted_message  # .split('\n')
                 print(result)
                 self.ui.result_window(result)
                 if result[2] == "accept":
-                    if command[0] == "upl":
-                        self.upload_request()
+                    if command[0] == "dnl":
+                        if self.ui.make_sure_window(f"start downloading {command[1]}"):
+                            self.download_request(True, command)
+                        else:
+                            self.download_request(False, command)
                     else:
-                        self.download_request()
-
+                        self.upload_request(command)
                 command = self.ui.command_window(username)
-
         except Exception as e:
             print(e)
             self.logger.error(f"An error was occurred during the process: {e}")
@@ -144,8 +176,8 @@ class SiFTClient:
         # bytenak kell lenniuk
         salt = request_hash
         print(request_hash.hex())
-        print(client_random+server_random)
-        self.final_key = HKDF(bytes.fromhex(client_random)+bytes.fromhex(server_random), 32, salt, SHA256, 1)
+        print(client_random + server_random)
+        self.final_key = HKDF(bytes.fromhex(client_random) + bytes.fromhex(server_random), 32, salt, SHA256, 1)
         self.logger.debug(f"FINAL KEY: {self.final_key}")
 
     def command_format(self, command):
