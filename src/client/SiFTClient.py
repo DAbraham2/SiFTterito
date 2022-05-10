@@ -85,24 +85,34 @@ class SiFTClient:
         upload_file = open(command[1], 'rb')
         l = upload_file.read(1024)  # each time we only send 1024 bytes of data
         msg_hash = None
-        while (l):
+        while size > 0:
             print('File uploading...')
             if size <= 1024:
-                l = f.read(1024)
-                file_fragment, msg_hash = UploadRequest1Message().send_file_last_fragment(l, self.sqn, self.final_key)
+                file_fragment, msg_hash = UploadRequest1Message(l, self.sqn, self.final_key).send_file_last_fragment()
                 self.sock.sendall(file_fragment)
+                self.logger.info("File sent")
             else:
-                l = f.read(1024)
-                file_fragment, msg_hash = UploadRequest0Message().send_file_last_fragment(l, self.sqn, self.final_key)
+                file_fragment, msg_hash = UploadRequest0Message(l, self.sqn, self.final_key).send_file_fragment()
                 self.sock.sendall(file_fragment)
+                l = upload_file.read(1024)
             self.increase_sqn()
             size = size - 1024
-        f.close()
         print("File Uploaded Successfully!")
         received_msg = self.sock.recv(1024)
-        self.logger.debug(f"Command response: {received_msg}")
+        '''
+        self.logger.debug(f"Upload response: {received_msg}")
+        h = SHA256.new()
+        while True:
+            data = upload_file.read(1024)
+            if not data:
+                break
+            h.update(data)
+        msg_hash = h.digest()
+        self.logger.debug(f"file hash: {h.hexdigest()}")
+        '''
+        upload_file.close()
         decrypted_message = UploadResponseMessage(received_msg, self.sqn, self.final_key,
-                                                  msg_hash).command_response()
+                                                  msg_hash).upload_response()
         result = decrypted_message
         print(result)
         getch()
@@ -121,12 +131,19 @@ class SiFTClient:
                 self.sock.sendall(msg)
                 last_dnl_res = False
                 print("File downloading...")
+                self.increase_sqn()
                 while not last_dnl_res:
-                    received_file_fragment = self.sock.recv(1024)
-                    decrypted_fragment, last_dnl_res = DnloadResponseMessage(received_file_fragment, self.sqn, self.final_key).dnl_response()
+                    received_file_fragment = self.sock.recv(2048)
+                    decrypted_fragment, last_dnl_res = DnloadResponseMessage(received_file_fragment, self.sqn,
+                                                                             self.final_key).dnl_response()
                     downloaded_file.write(decrypted_fragment)
                 h = SHA256.new()
-                h.update(str.encode(self.message))
+                '''
+                while True:
+                    data = (downloaded_file.read(1024))
+                    if not data:
+                        break
+                    h.update(data)
                 hashed = h.digest()
                 self.logger.debug(f"File hash: {h.hexdigest()}")
                 if hashed != result[4]:
@@ -135,6 +152,7 @@ class SiFTClient:
                 if len(downloaded_file) != int(result[3]):
                     self.logger.debug(f"File sizes do not match: {len(downloaded_file)} to {int(result[3])}")
                     self.sock.close()
+                '''
                 downloaded_file.close()
             else:
                 msg = DnloadRequestMessage("Cancel", self.sqn, self.final_key, ).download_request()

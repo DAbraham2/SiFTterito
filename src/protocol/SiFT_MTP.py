@@ -136,13 +136,12 @@ class MTPResponseMessage:
         sqn = int.from_bytes(self.sqn, byteorder='big')
 
         res_type = int.from_bytes(header_type, byteorder='big')
-        expected_type0 = b'\x03\x10'
-        expected_type1 = b'\x03\x11'
+        expected_type0 = int.from_bytes(b'\x03\x10', byteorder='big')
+        expected_type1 = int.from_bytes(b'\x03\x11', byteorder='big')
 
         decrypted_payload = None
         if self.check_version(header_version) and \
                 self.check_sqn(res_sqn, sqn) and \
-                self.check_type(res_type, expected_type0) or self.check_type(res_type, expected_type1) and \
                 self.check_length(header_length):
             # check mac
             self.logger.info("Checking response mac")
@@ -159,10 +158,15 @@ class MTPResponseMessage:
                 self.logger.error(f"Error: {e}")
                 return None, None
         if self.check_type(res_type, expected_type0):
+            self.logger.info("Not last d fragment")
             return decrypted_payload, False
         else:
-            return decrypted_payload, True
-
+            if self.check_type(res_type, expected_type1):
+                self.logger.info("Lst dfragment")
+                return decrypted_payload, True
+            else:
+                self.logger.info("Not matchin type")
+                return None, None
 
 
 class MTPRequestMessage:
@@ -459,10 +463,11 @@ class UploadRequest0Message:
         self.logger = logging.getLogger(__name__)
         self.logger.info("upload request0 init")
         self.key = key
-        self.type = b'\x02\x00'
+        self.typ = b'\x02\x00'
         self.sqn = original_sqn
         self.payload = None
         self.message = upload_req0_message
+        self.message = self.message.decode("utf-8")
 
     def send_file_fragment(self):
         self.logger.info("upload request0 function")
@@ -473,12 +478,12 @@ class UploadRequest0Message:
         return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
 
     def create_request_sha256(self):
-        self.logger.info("command request sha256")
-        print("Creating the SHA256 hash of the message...")
+        self.logger.info("file request sha256")
+        print("Creating the SHA256 hash of the file...")
         h = SHA256.new()
         h.update(str.encode(self.message))
         hashed = h.digest()
-        self.logger.debug(f"Message hash: {h.hexdigest()}")
+        self.logger.debug(f"file hash: {h.hexdigest()}")
         return hashed
 
 
@@ -487,26 +492,27 @@ class UploadRequest1Message:
         self.logger = logging.getLogger(__name__)
         self.logger.info("upload request1 init")
         self.key = key
-        self.type = b'\x02\x01'
+        self.typ = b'\x02\x01'
         self.sqn = original_sqn
         self.payload = None
         self.message = upload_req1_message
+        self.message = self.message.decode("utf-8")
 
     def send_file_last_fragment(self):
-        self.logger.info("upload request0 function")
+        self.logger.info("upload request1 function")
         return self.handle_message_to_mtp(), self.create_request_sha256()
 
     def handle_message_to_mtp(self):
-        self.logger.info("upload request0 to mtp")
+        self.logger.info("upload request1 to mtp")
         return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
 
     def create_request_sha256(self):
-        self.logger.info("command request sha256")
-        print("Creating the SHA256 hash of the message...")
+        self.logger.info("file request sha256")
+        print("Creating the SHA256 hash of the file...")
         h = SHA256.new()
         h.update(str.encode(self.message))
         hashed = h.digest()
-        self.logger.debug(f"Message hash: {h.hexdigest()}")
+        self.logger.debug(f"file hash: {h.hexdigest()}")
         return hashed
 
 
@@ -529,7 +535,8 @@ class UploadResponseMessage:
         if self.payload is None:
             return None, None
         payload_array = self.payload.split('\n')
-        if bytes.fromhex(payload_array[1]) != self.original_hash:
+        self.logger.info("Hash check")
+        if bytes.fromhex(payload_array[0]) != self.original_hash:
             self.logger.error(f"Hashes do not match:\n"
                               f"Got: {payload_array[0]}\n"
                               f"expected: {self.original_hash}")
@@ -541,7 +548,6 @@ class DnloadRequestMessage:
     def __init__(self, download_req_message, original_sqn, key):
         self.logger = logging.getLogger(__name__)
         self.logger.info("download request init")
-        self.original_hash = original_hash
         self.key = key
         self.type = b'\x03\x00'
         self.sqn = original_sqn
@@ -550,14 +556,13 @@ class DnloadRequestMessage:
 
     def download_request(self):
         self.logger.info("download request to mtp")
-        return MTPRequestMessage(self.message, self.typ, self.sqn).create_request(self.key)
+        return MTPRequestMessage(self.message, self.type, self.sqn).create_request(self.key)
 
 
 class DnloadResponseMessage:
     def __init__(self, download_res0_message, original_sqn, key):
         self.logger = logging.getLogger(__name__)
         self.logger.info("download response0 init")
-        self.original_hash = original_hash
         self.key = key
         self.type = b'\x03\x00'
         self.sqn = original_sqn
@@ -568,16 +573,3 @@ class DnloadResponseMessage:
         decrypt_download, last_fragment = MTPResponseMessage(self.message, self.sqn, self.type, self.key).decrypt_download()
         self.logger.debug(decrypt_download, last_fragment)
         return decrypt_download, last_fragment
-
-'''
-class DnloadResponse1Message:
-    def __init__(self, download_res1_message, original_sqn, key, original_hash):
-        self.logger = logging.getLogger(__name__)
-        self.logger.info("download response1 init")
-        self.original_hash = original_hash
-        self.key = key
-        self.type = b'\x03\x11'
-        self.sqn = original_sqn
-        self.payload = None
-        self.message = download_res1_message
-'''
