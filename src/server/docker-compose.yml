@@ -1,0 +1,13 @@
+version: '3.9'
+services:
+  sift-server:
+    image: ${DOCKER_REGISTRY-}sift-server
+    container_name: sift-Server
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5150:5150"
+    volumes:
+      - ../logs/:/app/log
+      - ../server_content/:/app/server_content

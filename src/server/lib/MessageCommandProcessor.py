@@ -46,7 +46,7 @@ class MTPv1CommandFactory:
 
     def getCommandFromMessage(message: MTPv1Message) -> CommandBase:
         logger.debug('getCommandFromMessage')
-        cmd = CommandBase()
+        cmd = CommandBase(None)
         match message.typ:
             case MTPConstants.LoginRequestType:
                 logger.error('LoginRequestType')

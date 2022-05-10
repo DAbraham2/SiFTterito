@@ -1,5 +1,5 @@
 
-FROM python:3.8-slim-buster
+FROM python:3.10.4-slim-buster
 
 EXPOSE 5150
 
@@ -11,8 +11,8 @@ RUN pip3 install -r requirements.txt
 
 RUN python3 -m Crypto.SelfTest
 
-RUN python3 -m Cryptodome.SelfTest
+#RUN python3 -m Cryptodome.SelfTest
 
 COPY . .
 
-CMD ["python3", "./SiFTServer.py", "--host='0.0.0.0'", "--port=5150"]
+CMD ["python3", "./SiFTServer.py", "--port=5150"]

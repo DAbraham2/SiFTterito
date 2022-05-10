@@ -207,6 +207,21 @@ class DownloadResponse1(MTPv1Message):
         return c
 
 
+class UploadRequest0(MTPv1Message):
+    pass
+
+class UploadRequest1(MTPv1Message):
+    pass
+
+class UploadResponse(MTPv1Message):
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.UploadResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
 class MessageFactory:
     def create(header: bytes, body: bytes, *, transfer_key: bytes = None) -> MTPv1Message:
         logger.debug(
@@ -225,12 +240,10 @@ class MessageFactory:
                 return CommandResponse.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.UploadRequest0Type:
                 logger.debug('UploadRequest0Type')
-                # TODO
-                pass
+                return UploadRequest0.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.UploadRequest1Type:
                 logger.debug('UploadRequest1Type')
-                # TODO
-                pass
+                return UploadRequest1.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.DownloadRequestType:
                 logger.debug('DownloadRequestType')
                 return DownloadRequest.createFromContent(data, transfer_key=transfer_key)
