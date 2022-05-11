@@ -99,6 +99,7 @@ class Upload0Command(CommandBase):
         super().__init__(payload)
         self.data = payload
         self.logger = logging.getLogger(__name__)
+        self.logger.debug('Upload0Command')
 
     def do(self, *, dm: DirManager) -> tuple[bytes, str]:
         if dm is None:
@@ -109,12 +110,13 @@ class Upload0Command(CommandBase):
             self.logger.error('Illegal upload attempt.')
             raise ValueError('Illegal upload')
 
+        self.logger.debug('Upload0Command.do\nfile started')
         with open(dm.file_to_upload, 'ab') as f:
             f.write(self.data)
             f.flush()
             f.close()
-
-        return (b'', b'')
+        self.logger.debug('Upload0Command.do\nfile finished')
+        return (b'', '')
 
 
 class Upload1Command(CommandBase):
@@ -139,7 +141,8 @@ class Upload1Command(CommandBase):
 
         size = os.path.getsize(dm.file_to_upload)
         hash = getFileHash(dm.file_to_upload)
-        if not hash is dm.upload_hash or not size is dm.upload_size:
+        if hash != dm.upload_hash or size != dm.upload_size:
+            self.logger.error(f'hash or size not equals:\nexpected hash {dm.upload_hash} got {hash}\nexpected size {dm.upload_size} got {size}')
             os.remove(dm.file_to_upload)
 
         dm.file_to_upload = None
@@ -258,11 +261,14 @@ class DnlCommand(CommandBase):
         self.path = lines[1]
 
     def do(self, *, dm: DirManager) -> tuple[bytes, str]:
-        if dm in None:
+        logger.debug('donwload command do')
+        if dm is None:
             raise ValueError('')
 
+        logger.debug(f'dnl.path: {self.path}')
         res = dm.init_dnl(self.path)
         header = MTPv1Message(typ=MTPConstants.CommandResponseType).getHeader()
+        logger.debug(f'dnl command do exit with res: {res}')
         return (header, 'dnl\n{}\n{}'.format(self.req_hash, res))
 
 
@@ -275,10 +281,16 @@ class UplCommand(CommandBase):
 
     def __init__(self, payload: bytes) -> None:
         super().__init__(payload)
-        lines = payload.decode('utf-8').split('\n')
-        self.path = lines[0]
-        self.size = int(lines[1])
-        self.hash = lines[2]
+        payloadText = payload.decode('utf-8')
+        logger.debug(f'upload command payload:\n'
+                     f'{payloadText}')
+
+        lines = payloadText.split('\n')
+        self.path = lines[1]
+        self.size = int(lines[2])
+        self.hash = lines[3]
+        logger.debug(
+            f'UplCommand(path: {self.path}, size: {self.size}, hash: {self.hash}')
 
     def do(self, *, dm: DirManager) -> tuple[bytes, str]:
         if dm is None:

@@ -78,11 +78,12 @@ class MTPv1Message(MTPMessage):
                  _len: bytes = bytes(2),
                  sqn: bytes = bytes(2),
                  rnd: bytes = get_random_bytes(6),
-                 rsv: bytes = bytes(2)) -> None:
+                 rsv: bytes = bytes(2),
+                 content: bytes = bytes(0)) -> None:
         if ver != bytes.fromhex('01 00'):
             raise ValueError()
 
-        super().__init__(ver, typ, _len, sqn, rnd, rsv)
+        super().__init__(ver, typ, _len, sqn, rnd, rsv, content=content)
 
 
 class LoginRequest(MTPv1Message):
@@ -224,8 +225,9 @@ class UploadResponse(MTPv1Message):
 
 class MessageFactory:
     def create(header: bytes, body: bytes, *, transfer_key: bytes = None) -> MTPv1Message:
+        mac = body[-12:]
         logger.debug(
-            f'MessageFactory.create(header:{header}, body: {body}, *, transfer_key = {transfer_key})')
+            f'MessageFactory.create(\nheader:{header.hex()}, \nbody: {body.hex()}, \nmac: {mac.hex()} *, transfer_key = {transfer_key})')
         typ = header[2:4]
         data = header+body
         match typ:
@@ -244,6 +246,9 @@ class MessageFactory:
             case MTPConstants.UploadRequest1Type:
                 logger.debug('UploadRequest1Type')
                 return UploadRequest1.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.UploadResponseType:
+                logger.debug('uploadResponseType')
+                return UploadResponse.createFromContent(data, transfer_key=transfer_key)
             case MTPConstants.DownloadRequestType:
                 logger.debug('DownloadRequestType')
                 return DownloadRequest.createFromContent(data, transfer_key=transfer_key)

@@ -42,8 +42,8 @@ def decryptMessage(epdmac: bytes, header: bytes, tk: bytes) -> bytes:
         cipher.update(header)
         payload = cipher.decrypt_and_verify(epd, mac)
     except Exception as e:
-        logger.warning(f'mac:{mac}\n'
-                       f'nonce: {nonce}')
+        logger.warning(f'mac:{mac.hex()}\n'
+                       f'nonce: {nonce.hex()}')
         logger.error(e)
         raise e
 

@@ -1,3 +1,4 @@
+import base64
 import logging
 import os
 import re
@@ -63,7 +64,15 @@ class DirManager:
                 list = list + '{}\n'.format(item.name)
 
             list = list.removesuffix('\n')
+            
+            message_bytes = list.encode('ascii')
+            base64_bytes = base64.b64encode(message_bytes)
+            base64_message = base64_bytes.decode('ascii')
             self.logger.debug('lst result: \n{}'.format(list))
+            self.logger.debug(f'lst result base64: {base64_message}')
+            list = base64_message
+            if list == '':
+                list = '\n'
             return success(list)
         except BaseException as err:
             self.logger.error(f'Error in lst\n{err}')
@@ -178,6 +187,8 @@ def success(text: str = '') -> str:
     t = text.strip()
     if t == '':
         return s
+    elif t == '\n':
+        return s + t
     else:
         s = s + '\n{}'.format(text)
 
@@ -197,6 +208,6 @@ def reject(err: BaseException) -> str:
 
 
 def cleanPath(p: str) -> str:
-    cleaned_dir = re.sub('[^A-Za-z0-9\/:.]+', '', p)
+    cleaned_dir = re.sub('[^A-Za-z0-9\/:._-]+', '', p)
     _, tail = splitdrive(cleaned_dir)
     return normpath(normcase(tail))

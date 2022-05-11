@@ -47,8 +47,11 @@ class SiFTProxy:
         else:
             cmd = MTPv1CommandFactory.getCommandFromMessage(message)
             header, payload = cmd.do(dm=self.directoryManager)
-            if not payload == '':
+            if not payload == '' or not header == b'':
+                self.logger.debug('message is being sent')
                 self.send_msg(header, payload.encode('utf-8'))
+            else:
+                self.logger.debug('message not sent')
 
     def send_msg(self, header: bytes, payload: bytes):
         try:
@@ -63,6 +66,7 @@ class SiFTProxy:
             raise ValueError(err)
 
     def DnlProtocol(self, content: str) -> None:
+        self.logger.debug(f'DnlProtocol with content: {content}')
         if(content == 'Ready'):
             with open(self.directoryManager.file_to_download, 'rb') as f:
                 while True:
