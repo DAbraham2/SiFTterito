@@ -1,8 +1,15 @@
+import logging
+
 from Crypto.Random import get_random_bytes
-from Crypto.Cipher import AES
+
+from lib.constants import MTPConstants
+from lib.cryptoStuff import (decryptLoginRequestETK, decryptMessage,
+                             encryptMessage)
+
+logger = logging.getLogger(__name__)
 
 
-class MTPMessage:
+class MTPMessage(object):
     """ 
     A class to represent SiFT Message Transfer Protocol messages
 
@@ -24,75 +31,233 @@ class MTPMessage:
         A 2-byte reserved field which is not used in this version of the protocol (reserved for future versions). Value should be set to 00 00.
     """
 
-    def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes) -> None:
-        if (len(ver) is not 2 or
-            len(typ) is not 2 or
-            len(len) is not 2 or
-            len(sqn) is not 2 or
-            len(rnd) is not 6 or
-            len(rsv) is not 2 or
+    def __init__(self, ver: bytes, typ: bytes, _len: bytes, sqn: bytes, rnd: bytes, rsv: bytes, *, content: bytes = bytes(0)) -> None:
+        if (not len(ver) is 2 or
+            not len(typ) is 2 or
+            not len(_len) is 2 or
+            not len(sqn) is 2 or
+            not len(rnd) is 6 or
+            not len(rsv) is 2 or
                 rsv != bytes(2)):
             raise ValueError('Incompatible values set')
         self.ver = ver
         self.typ = typ
-        self.len = len
+        self.len = _len
         self.sqn = sqn
         self.rnd = rnd
         self.rsv = rsv
-        self.content = bytes(len)
+        self.content = content
         self.mac = bytes(12)
 
-    def setContent(self, data: bytes) -> None:
-        cipher = AES.new(bytes(0), AES.MODE_GCM, mac_len=12)
-        epd, mac = cipher.encrypt_and_digest(data)
-        self.content = epd
-        self.mac = mac
-        # Magic 16 should represent the len(header)
-        length = len(self.content) + 16 + len(self.mac)
-        self.len = length.to_bytes(2, 'big', signed=False)
+    def getHeader(self) -> bytes:
+        return self.ver + self.typ + self.len + self.sqn + self.rnd + self.rsv
+
+    def setContent(self, data: bytes, *, tk: bytes = bytes(16)) -> None:
+        self.len = (16 + len(data) + 12).to_bytes(2, 'big')
+        self.content, self.mac = encryptMessage(data, self.getHeader(), tk)
+
+    def getMessageAsBytes(self) -> bytes:
+        return self.getHeader() + self.content + self.mac
+
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        header = data[:16]
+        epd = data[16:]
+        payload = decryptMessage(epd, header, transfer_key)
+        return cls(ver=header[:2], typ=header[2:4],
+                   _len=header[4:6], sqn=header[6:8],
+                   rnd=header[8:14], rsv=header[14:16],
+                   content=payload)
 
 
 class MTPv1Message(MTPMessage):
-    def __init__(self, typ: bytes, len: bytes, sqn: bytes) -> None:
-        rnd = get_random_bytes(6)
-        super().__init__(bytes.fromhex('0100'), typ, len, sqn, rnd, bytes.fromhex('0000'))
+
+    def __init__(self, *,
+                 ver: bytes = bytes.fromhex('0100'),
+                 typ: bytes = bytes.fromhex('ffff'),
+                 _len: bytes = bytes(2),
+                 sqn: bytes = bytes(2),
+                 rnd: bytes = get_random_bytes(6),
+                 rsv: bytes = bytes(2),
+                 content: bytes = bytes(0)) -> None:
+        if ver != bytes.fromhex('01 00'):
+            raise ValueError()
+
+        super().__init__(ver, typ, _len, sqn, rnd, rsv, content=content)
 
 
 class LoginRequest(MTPv1Message):
-    def __init__(self, sqn=bytes(2)) -> None:
-        super().__init__(typ=bytes.fromhex('0000'), len=bytes(2), sqn=sqn)
+    """
+    Login Request class
+    """
 
-    def __init__(self, ver: bytes, typ: bytes, len: bytes, sqn: bytes, rnd: bytes, rsv: bytes) -> None:
-        super().__init__(typ, len, sqn)
+    def __init__(self,  timestamp: int, username: str,
+                 password: str, client_secret: bytes, tk: bytes, *,
+                 ver: bytes = bytes.fromhex('0100'), typ: bytes = bytes.fromhex('0000'),
+                 _len: bytes = bytes(2), sqn: bytes = bytes(2),
+                 rnd: bytes = get_random_bytes(6), rsv: bytes = bytes(2)) -> None:
+        if typ != bytes.fromhex('00 00'):
+            raise ValueError('Wrong type')
+        super().__init__(ver=ver,
+                         typ=typ,
+                         _len=_len,
+                         sqn=sqn,
+                         rnd=rnd,
+                         rsv=rsv)
+        self.timestamp = timestamp
+        self.username = username
+        self.password = password
+        self.client_secret = client_secret
+        self.temporary_key = tk
 
-    def createFromContent(data: bytes) -> LoginRequest:
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
         """Creates a LoginRequest object from a recieved message
-        
+
         :param data: The recieved message
         :type data: bytes
         :returns: a new LoginRequest object
         :rtype: LoginRequest
         """
-        
-        ver = data[ 0: 2]
-        typ = data[ 2: 4]
-        len = data[ 4: 6]
-        sqn = data[ 6: 8]
-        rnd = data[ 8:14]
+
+        ver = data[0: 2]
+        typ = data[2: 4]
+        _len = data[4: 6]
+        sqn = data[6: 8]
+        rnd = data[8:14]
         rsv = data[14:16]
 
-        epd = data[16:-(12+256)]
-        mac = data[-(12+256):-256]
+        body = data[16:-256]
         etk = data[-256:]
-        pass
+
+        tk = decryptLoginRequestETK(etk)
+        content = decryptMessage(body, data[:16], tk)
+        content_str = content.decode('utf-8')
+        logger.info('LoginRequest.createFromContent content: ' + content_str)
+        content_arr = content_str.splitlines()
+
+        if len(content_arr) != 4:
+            raise ValueError('Payload is not right\n{}'.format(content_str))
+
+        timestamp = int(content_arr[0])
+        username = content_arr[1]
+        password = content_arr[2]
+        client_random = bytes.fromhex(content_arr[3])
+
+        return cls(timestamp, username, password, client_random, tk, ver=ver, typ=typ, _len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
 
 
 class LoginResponse(MTPv1Message):
-    def __init__(self, typ: bytes, len: bytes, sqn: bytes) -> None:
-        super().__init__(typ, len, sqn)
+    def __init__(self, payload: bytes, sqn: bytes, *, tk: bytes = bytes(32)) -> None:
+        _len = (16+len(payload)+12).to_bytes(2, 'big')
+        super().__init__(typ=bytes.fromhex('0010'), _len=_len, sqn=sqn)
+        self.setContent(payload, tk=tk)
 
     # It then encrypts the payload of the login response and produces an authentication tag on the message header
     # and the encrypted payload using AES in GCM mode with tk as the key and sqn+rnd as the nonce.
     # In this way the epd and mac fields are produced, and the login response is sent to the client.
-    def createFromContent(content: bytes):
-        pass
+
+    @classmethod
+    def createFromContent(cls, data: bytes):
+        raise ValueError('Should not be called')
+
+
+class CommandRequest(MTPv1Message):
+    def __init__(self, *, ver: bytes = bytes.fromhex('0100'),
+                 typ: bytes = bytes.fromhex('ffff'),
+                 _len: bytes = bytes(2),
+                 sqn: bytes = bytes(2),
+                 rnd: bytes = get_random_bytes(6),
+                 rsv: bytes = bytes(2),
+                 content: bytes = bytes(0)) -> None:
+        super().__init__(ver=ver, typ=typ, _len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
+        self.content = content
+
+
+class CommandResponse(MTPv1Message):
+    def __init__(self, *, ver: bytes = bytes.fromhex('0100'), typ: bytes = bytes.fromhex('ffff'), _len: bytes = bytes(2), sqn: bytes = bytes(2), rnd: bytes = get_random_bytes(6), rsv: bytes = bytes(2)) -> None:
+        super().__init__(ver=ver, typ=typ, _len=_len, sqn=sqn, rnd=rnd, rsv=rsv)
+
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.CommandResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
+class DownloadRequest(MTPv1Message):
+    pass
+
+
+class DownloadResponse0(MTPv1Message):
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.Download0ResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
+class DownloadResponse1(MTPv1Message):
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.Download1ResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
+class UploadRequest0(MTPv1Message):
+    pass
+
+class UploadRequest1(MTPv1Message):
+    pass
+
+class UploadResponse(MTPv1Message):
+    @classmethod
+    def createFromContent(cls, data: bytes, *, transfer_key: bytes):
+        sqn = data[6:8]
+        c = cls(typ=MTPConstants.UploadResponseType, sqn=sqn)
+        c.setContent(data[16:], tk=transfer_key)
+        return c
+
+
+class MessageFactory:
+    def create(header: bytes, body: bytes, *, transfer_key: bytes = None) -> MTPv1Message:
+        mac = body[-12:]
+        logger.debug(
+            f'MessageFactory.create(\nheader:{header.hex()}, \nbody: {body.hex()}, \nmac: {mac.hex()} *, transfer_key = {transfer_key})')
+        typ = header[2:4]
+        data = header+body
+        match typ:
+            case MTPConstants.LoginRequestType:
+                logger.debug('LoginRequestType')
+                return LoginRequest.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.CommandRequestType:
+                logger.debug('CommandRequestType')
+                return CommandRequest.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.CommandResponseType:
+                logger.debug('CommandResponseType')
+                return CommandResponse.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.UploadRequest0Type:
+                logger.debug('UploadRequest0Type')
+                return UploadRequest0.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.UploadRequest1Type:
+                logger.debug('UploadRequest1Type')
+                return UploadRequest1.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.UploadResponseType:
+                logger.debug('uploadResponseType')
+                return UploadResponse.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.DownloadRequestType:
+                logger.debug('DownloadRequestType')
+                return DownloadRequest.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.Download0ResponseType:
+                logger.debug('Download0ResponseType')
+                return DownloadResponse0.createFromContent(data, transfer_key=transfer_key)
+            case MTPConstants.Download1ResponseType:
+                logger.debug('Download1ResponseType')
+                return DownloadResponse1.createFromContent(data, transfer_key=transfer_key)
+            case _:
+                logger.error(f'typ undefined: {typ}')
+                raise ValueError('typ undefined')
