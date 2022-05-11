@@ -11,7 +11,7 @@ from os.path import exists
 
 
 file_dir = os.path.dirname(__file__)
-protocol_dir = os.path.join(file_dir, '..', 'protocol')
+protocol_dir = os.path.join(file_dir, 'protocol')
 sys.path.append(protocol_dir)
 from SiFT_MTP import LoginRequestMessage, LoginResponseMessage, CommandRequestMessage, CommandResponseMessage, \
     UploadRequest0Message, UploadRequest1Message, UploadResponseMessage

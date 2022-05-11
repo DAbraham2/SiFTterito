@@ -1,7 +1,7 @@
 import unittest
 import sys
 
-sys.path.append('../../protocol')
+sys.path.append('../protocol')
 import SiFT_MTP
 from Crypto import Random
 from Crypto.Hash import SHA256, HMAC
