@@ -1,2 +1,2 @@
-.\stop.bat
-.\start.bat
+CALL .\stop.bat
+CALL .\start.bat
