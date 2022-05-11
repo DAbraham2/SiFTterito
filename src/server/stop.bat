@@ -1,0 +1,3 @@
+ECHO OFF
+ECHO Stoping server container...
+docker-compose -f .\docker-compose.yml down

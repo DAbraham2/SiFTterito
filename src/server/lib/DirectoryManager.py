@@ -134,6 +134,7 @@ class DirManager:
                 raise ValueError('You\'re caged AF.')
 
             p = Path(normpath(self.current_working_dir/c))
+            self.logger.debug(f'requested file: {p}')
             if not p.is_file():
                 raise ValueError('Requested path is not a file.')
 

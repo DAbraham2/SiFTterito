@@ -41,7 +41,8 @@ class SiFTProxy:
                                      transfer_key=self.transfer_key)
 
     def executeMessage(self, message: MTPv1Message):
-        if message.typ is MTPConstants.DownloadRequestType:
+        self.logger.debug(f'executeMessage with type: {message.typ}, dnlReq type: {MTPConstants.DownloadRequestType}')
+        if message.typ == MTPConstants.DownloadRequestType:
             self.logger.info('Started download protocol')
             self.DnlProtocol(message.content.decode('utf-8'))
         else:
